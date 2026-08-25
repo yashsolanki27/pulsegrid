@@ -18,5 +18,5 @@
 - [x] CRUD endpoints: orders
 - [x] CRUD endpoints: tickets
 - [x] Duplicate-customer detection (same email, different id)
-- [ ] Basic tests (Postman/Newman)
+- [x] Basic tests (Postman/Newman)
 - [ ] Seed script (synthetic data)

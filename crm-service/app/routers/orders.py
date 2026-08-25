@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Customer, Order
+from app.models import Customer, Order, Ticket
 from app.schemas import OrderCreate, OrderOut, OrderUpdate
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -69,5 +69,20 @@ def update_order(
 @router.delete("/{order_id}", status_code=204)
 def delete_order(order_id: int, db: Session = Depends(get_db)):
     order = _get_order_or_404(db, order_id)
+    # Explicit guard: the ORM nulls the nullable tickets.order_id FK on
+    # parent delete instead of raising, so IntegrityError never fires here.
+    dependent_tickets = db.scalar(
+        select(func.count()).select_from(Ticket).where(Ticket.order_id == order_id)
+    )
+    if dependent_tickets:
+        raise HTTPException(status_code=409, detail="order has dependent tickets")
     db.delete(order)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="order has dependent tickets",
+        )
+    return Response(status_code=204)

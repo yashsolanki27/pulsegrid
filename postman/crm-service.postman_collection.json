@@ -1,0 +1,739 @@
+{
+	"info": {
+		"_postman_id": "b1f2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+		"name": "PulseGrid — crm-service",
+		"description": "CRUD + edge-case coverage for crm-service implemented endpoints (customers, orders, tickets).\n\nCovers ONLY what is currently built: no ticket severity/status fields, no erp-service integration, no auth, no pagination.\n\nRequests must run in collection order (Newman default) — ids chain via collection variables set by test scripts. Emails are timestamped per run so re-runs are safe even if a previous run's cleanup failed.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "baseUrl", "value": "http://localhost:8000" },
+		{ "key": "customer_a_email", "value": "" },
+		{ "key": "customer_b_email", "value": "" },
+		{ "key": "customer_id", "value": "" },
+		{ "key": "customer_b_id", "value": "" },
+		{ "key": "order_id", "value": "" },
+		{ "key": "ticket_id", "value": "" }
+	],
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health check",
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/health"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"status ok\", () => pm.expect(pm.response.json()).to.eql({ status: \"ok\" }));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "Create customer A",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (!pm.collectionVariables.get(\"customer_a_email\")) {",
+									"  pm.collectionVariables.set(\"customer_a_email\", `alice.${Date.now()}@example.com`);",
+									"  pm.collectionVariables.set(\"customer_b_email\", `bob.${Date.now()}@example.com`);",
+									"}"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"const body = pm.response.json();",
+									"pm.test(\"echoes email and name\", () => {",
+									"  pm.expect(body.email).to.eql(pm.collectionVariables.get(\"customer_a_email\"));",
+									"  pm.expect(body.name).to.eql(\"Alice\");",
+									"});",
+									"pm.test(\"has id and created_at\", () => {",
+									"  pm.expect(body.id).to.be.a(\"number\");",
+									"  pm.expect(body.created_at).to.be.a(\"string\");",
+									"});",
+									"pm.collectionVariables.set(\"customer_id\", body.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{customer_a_email}}\",\n  \"name\": \"Alice\"\n}"
+						},
+						"url": "{{baseUrl}}/customers"
+					}
+				},
+				{
+					"name": "Create customer B",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"pm.collectionVariables.set(\"customer_b_id\", pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{customer_b_email}}\",\n  \"name\": \"Bob\"\n}"
+						},
+						"url": "{{baseUrl}}/customers"
+					}
+				},
+				{
+					"name": "Edge: create duplicate customer (same email) → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));",
+									"const detail = pm.response.json().detail;",
+									"pm.test(\"detail reports duplicate with existing id\", () => {",
+									"  pm.expect(detail.error).to.eql(\"duplicate customer\");",
+									"  pm.expect(detail.existing_id).to.eql(Number(pm.collectionVariables.get(\"customer_id\")));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{customer_a_email}}\",\n  \"name\": \"Imposter Alice\"\n}"
+						},
+						"url": "{{baseUrl}}/customers"
+					}
+				},
+				{
+					"name": "List customers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"const list = pm.response.json();",
+									"pm.test(\"returns array containing customer A\", () => {",
+									"  pm.expect(list).to.be.an(\"array\");",
+									"  pm.expect(list.some(c => c.id === Number(pm.collectionVariables.get(\"customer_id\")))).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/customers"
+					}
+				},
+				{
+					"name": "Get customer A by id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"const body = pm.response.json();",
+									"pm.test(\"correct customer returned\", () => {",
+									"  pm.expect(body.id).to.eql(Number(pm.collectionVariables.get(\"customer_id\")));",
+									"  pm.expect(body.email).to.eql(pm.collectionVariables.get(\"customer_a_email\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/customers/{{customer_id}}"
+					}
+				},
+				{
+					"name": "Edge: get missing customer → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'customer not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"customer not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/customers/999999"
+					}
+				},
+				{
+					"name": "Update customer A (PATCH name)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"name updated, email unchanged\", () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.name).to.eql(\"Alice Updated\");",
+									"  pm.expect(body.email).to.eql(pm.collectionVariables.get(\"customer_a_email\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Alice Updated\"\n}"
+						},
+						"url": "{{baseUrl}}/customers/{{customer_id}}"
+					}
+				},
+				{
+					"name": "Edge: update to another customer's email → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));",
+									"pm.test(\"detail reports duplicate\", () => pm.expect(pm.response.json().detail.error).to.eql(\"duplicate customer\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{customer_b_email}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/customers/{{customer_id}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Orders",
+			"item": [
+				{
+					"name": "Create order for customer A",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"const body = pm.response.json();",
+									"pm.test(\"linked to correct customer\", () => {",
+									"  pm.expect(body.customer_id).to.eql(Number(pm.collectionVariables.get(\"customer_id\")));",
+									"  pm.expect(body.id).to.be.a(\"number\");",
+									"});",
+									"pm.collectionVariables.set(\"order_id\", body.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": {{customer_id}}\n}"
+						},
+						"url": "{{baseUrl}}/orders"
+					}
+				},
+				{
+					"name": "Edge: create order for missing customer → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'customer not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"customer not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": 999999\n}"
+						},
+						"url": "{{baseUrl}}/orders"
+					}
+				},
+				{
+					"name": "List orders",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"array contains created order\", () => {",
+									"  const list = pm.response.json();",
+									"  pm.expect(list).to.be.an(\"array\");",
+									"  pm.expect(list.some(o => o.id === Number(pm.collectionVariables.get(\"order_id\")))).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/orders"
+					}
+				},
+				{
+					"name": "Get order by id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"correct order returned\", () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.id).to.eql(Number(pm.collectionVariables.get(\"order_id\")));",
+									"  pm.expect(body.customer_id).to.eql(Number(pm.collectionVariables.get(\"customer_id\")));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/orders/{{order_id}}"
+					}
+				},
+				{
+					"name": "Update order (PATCH customer_id → B)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"reassigned to customer B\", () => pm.expect(pm.response.json().customer_id).to.eql(Number(pm.collectionVariables.get(\"customer_b_id\"))));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": {{customer_b_id}}\n}"
+						},
+						"url": "{{baseUrl}}/orders/{{order_id}}"
+					}
+				},
+				{
+					"name": "Reassign order back to customer A",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"back on customer A\", () => pm.expect(pm.response.json().customer_id).to.eql(Number(pm.collectionVariables.get(\"customer_id\"))));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": {{customer_id}}\n}"
+						},
+						"url": "{{baseUrl}}/orders/{{order_id}}"
+					}
+				},
+				{
+					"name": "Edge: get missing order → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'order not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"order not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/orders/999999"
+					}
+				}
+			]
+		},
+		{
+			"name": "Tickets",
+			"item": [
+				{
+					"name": "Create ticket for A linked to order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"const body = pm.response.json();",
+									"pm.test(\"correct links and subject\", () => {",
+									"  pm.expect(body.customer_id).to.eql(Number(pm.collectionVariables.get(\"customer_id\")));",
+									"  pm.expect(body.order_id).to.eql(Number(pm.collectionVariables.get(\"order_id\")));",
+									"  pm.expect(body.subject).to.eql(\"Order issue\");",
+									"});",
+									"pm.collectionVariables.set(\"ticket_id\", body.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": {{customer_id}},\n  \"order_id\": {{order_id}},\n  \"subject\": \"Order issue\"\n}"
+						},
+						"url": "{{baseUrl}}/tickets"
+					}
+				},
+				{
+					"name": "Edge: ticket order_id owned by different customer → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'order not found' (ownership mismatch)\", () => pm.expect(pm.response.json().detail).to.eql(\"order not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": {{customer_b_id}},\n  \"order_id\": {{order_id}},\n  \"subject\": \"Cross-customer link\"\n}"
+						},
+						"url": "{{baseUrl}}/tickets"
+					}
+				},
+				{
+					"name": "Edge: ticket for missing customer → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'customer not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"customer not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customer_id\": 999999,\n  \"subject\": \"Ghost customer\"\n}"
+						},
+						"url": "{{baseUrl}}/tickets"
+					}
+				},
+				{
+					"name": "List tickets",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"array contains created ticket\", () => {",
+									"  const list = pm.response.json();",
+									"  pm.expect(list).to.be.an(\"array\");",
+									"  pm.expect(list.some(t => t.id === Number(pm.collectionVariables.get(\"ticket_id\")))).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/tickets"
+					}
+				},
+				{
+					"name": "Get ticket by id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"correct ticket returned\", () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"ticket_id\"))));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/tickets/{{ticket_id}}"
+					}
+				},
+				{
+					"name": "Edge: get missing ticket → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'ticket not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"ticket not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/tickets/999999"
+					}
+				},
+				{
+					"name": "Update ticket subject (PATCH)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"subject updated\", () => pm.expect(pm.response.json().subject).to.eql(\"Updated subject\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subject\": \"Updated subject\"\n}"
+						},
+						"url": "{{baseUrl}}/tickets/{{ticket_id}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Deletes & dependent guard",
+			"item": [
+				{
+					"name": "Edge: delete customer with dependents → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));",
+									"pm.test(\"detail mentions dependents\", () => pm.expect(pm.response.json().detail).to.eql(\"customer has dependent orders or tickets\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/customers/{{customer_id}}"
+					}
+				},
+				{
+					"name": "Edge: delete order with dependent ticket → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));",
+									"pm.test(\"detail mentions dependents\", () => pm.expect(pm.response.json().detail).to.eql(\"order has dependent tickets\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/orders/{{order_id}}"
+					}
+				},
+				{
+					"name": "Clear ticket order link (PATCH order_id null)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"order_id cleared\", () => pm.expect(pm.response.json().order_id).to.be.null);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"order_id\": null\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/tickets/{{ticket_id}}"
+					}
+				},
+				{
+					"name": "Delete ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": ["pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/tickets/{{ticket_id}}"
+					}
+				},
+				{
+					"name": "Delete order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": ["pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/orders/{{order_id}}"
+					}
+				},
+				{
+					"name": "Delete customer B",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": ["pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/customers/{{customer_b_id}}"
+					}
+				},
+				{
+					"name": "Delete customer A",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"204 No Content\", () => pm.response.to.have.status(204));",
+									"pm.test(\"cleanup vars reset\", () => {",
+									"  [\"customer_id\", \"customer_b_id\", \"order_id\", \"ticket_id\", \"customer_a_email\", \"customer_b_email\"].forEach(k => pm.collectionVariables.set(k, \"\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/customers/{{customer_id}}"
+					}
+				}
+			]
+		}
+	]
+}
