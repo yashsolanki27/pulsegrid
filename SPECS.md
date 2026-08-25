@@ -14,7 +14,7 @@
 
 - [x] Project scaffold (FastAPI app, folder structure, uv env)
 - [x] DB schema: customers, orders, tickets
-- [ ] CRUD endpoints: customers
+- [x] CRUD endpoints: customers
 - [ ] CRUD endpoints: orders
 - [ ] CRUD endpoints: tickets
 - [ ] Duplicate-customer detection (same email, different id)
