@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class CustomerCreate(BaseModel):
@@ -33,6 +33,28 @@ class OrderUpdate(BaseModel):
 class OrderOut(BaseModel):
     id: int
     customer_id: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TicketCreate(BaseModel):
+    customer_id: int
+    order_id: int | None = None
+    subject: str = Field(min_length=1)
+
+
+class TicketUpdate(BaseModel):
+    customer_id: int | None = None
+    order_id: int | None = None
+    subject: str | None = Field(default=None, min_length=1)
+
+
+class TicketOut(BaseModel):
+    id: int
+    customer_id: int
+    order_id: int | None
+    subject: str
     created_at: datetime
 
     model_config = {"from_attributes": True}

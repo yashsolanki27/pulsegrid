@@ -16,7 +16,7 @@
 - [x] DB schema: customers, orders, tickets
 - [x] CRUD endpoints: customers
 - [x] CRUD endpoints: orders
-- [ ] CRUD endpoints: tickets
+- [x] CRUD endpoints: tickets
 - [x] Duplicate-customer detection (same email, different id)
 - [ ] Basic tests (Postman/Newman)
 - [ ] Seed script (synthetic data)
