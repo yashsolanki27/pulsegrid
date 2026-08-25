@@ -12,7 +12,7 @@
 
 ## Phase 1: CRM service — checklist
 
-- [ ] Project scaffold (FastAPI app, folder structure, uv env)
+- [x] Project scaffold (FastAPI app, folder structure, uv env)
 - [ ] DB schema: customers, orders, tickets
 - [ ] CRUD endpoints: customers
 - [ ] CRUD endpoints: orders
