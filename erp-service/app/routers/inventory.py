@@ -17,11 +17,32 @@ def _get_item_or_404(db: Session, item_id: int) -> InventoryItem:
     return item
 
 
+def _commit_or_catch_check(db: Session) -> None:
+    """Commit and surface DB CHECK constraint violations as HTTP 422.
+
+    The ck_inventory_quantity_nonneg CHECK constraint is the DB-layer guard
+    complementing Pydantic's ge=0 validation.  If somehow a negative value
+    reaches the DB (e.g. via direct SQL or future stock-deduction logic that
+    bypasses the schema), this converts the IntegrityError to a readable 422
+    rather than letting a 500 propagate.
+    """
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if "ck_inventory_quantity_nonneg" in str(exc.orig):
+            raise HTTPException(
+                status_code=422,
+                detail="quantity must be >= 0 (DB constraint violated)",
+            )
+        raise
+
+
 @router.post("", response_model=InventoryItemOut, status_code=201)
 def create_item(payload: InventoryItemCreate, db: Session = Depends(get_db)):
     item = InventoryItem(name=payload.name, quantity=payload.quantity)
     db.add(item)
-    db.commit()
+    _commit_or_catch_check(db)
     db.refresh(item)
     return item
 
@@ -44,7 +65,7 @@ def update_item(
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(item, field, value)
-    db.commit()
+    _commit_or_catch_check(db)
     db.refresh(item)
     return item
 

@@ -1,6 +1,9 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
+
+from app.models import InvoiceStatus
 
 
 class InvoiceCreate(BaseModel):
@@ -8,13 +11,13 @@ class InvoiceCreate(BaseModel):
 
 
 class InvoiceUpdate(BaseModel):
-    status: str | None = Field(default=None, min_length=1)
+    status: InvoiceStatus | None = None
 
 
 class InvoiceOut(BaseModel):
     id: int
     crm_order_id: int
-    status: str
+    status: InvoiceStatus
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -39,5 +42,22 @@ class InventoryItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# BLOCKED: AccountCreate / AccountOut not yet defined.
-# Schema depends on resolving the "accounts" entity purpose — see blocked.md.
+class AccountCreate(BaseModel):
+    crm_customer_id: int
+    balance: Decimal = Field(default=Decimal("0.00"), ge=0)
+    credit_limit: Decimal = Field(default=Decimal("0.00"), ge=0)
+
+
+class AccountUpdate(BaseModel):
+    balance: Decimal | None = Field(default=None, ge=0)
+    credit_limit: Decimal | None = Field(default=None, ge=0)
+
+
+class AccountOut(BaseModel):
+    id: int
+    crm_customer_id: int
+    balance: Decimal
+    credit_limit: Decimal
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

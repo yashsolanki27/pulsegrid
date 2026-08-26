@@ -23,10 +23,10 @@
 
 ## Phase 2: ERP service — checklist
 
-- [x] Project scaffold (FastAPI app, folder structure, uv env) — invoices + inventory only; accounts BLOCKED (see blocked.md)
-- [ ] DB schema: accounts (BLOCKED — entity purpose undefined, see blocked.md)
+- [x] Project scaffold (FastAPI app, folder structure, uv env)
+- [x] DB schema: invoices, inventory, accounts (migration 0002)
 - [ ] CRUD endpoints: invoices
 - [ ] CRUD endpoints: inventory
-- [ ] CRUD endpoints: accounts (BLOCKED — depends on schema)
+- [ ] CRUD endpoints: accounts
 - [ ] Basic tests (Postman/Newman)
 - [ ] Seed script (synthetic data)

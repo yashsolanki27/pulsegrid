@@ -4,10 +4,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Invoice
+from app.models import Invoice, InvoiceStatus
 from app.schemas import InvoiceCreate, InvoiceOut, InvoiceUpdate
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+# Valid forward transitions — no skipping, no reversal.
+_ALLOWED_TRANSITIONS: dict[InvoiceStatus, set[InvoiceStatus]] = {
+    InvoiceStatus.draft: {InvoiceStatus.sent},
+    InvoiceStatus.sent: {InvoiceStatus.paid, InvoiceStatus.overdue},
+    InvoiceStatus.paid: set(),
+    InvoiceStatus.overdue: set(),
+}
 
 
 def _get_invoice_or_404(db: Session, invoice_id: int) -> Invoice:
@@ -15,6 +23,19 @@ def _get_invoice_or_404(db: Session, invoice_id: int) -> Invoice:
     if invoice is None:
         raise HTTPException(status_code=404, detail="invoice not found")
     return invoice
+
+
+def _assert_valid_transition(current: InvoiceStatus, next_status: InvoiceStatus) -> None:
+    """Raise 422 if the requested transition is not allowed."""
+    if next_status not in _ALLOWED_TRANSITIONS[current]:
+        allowed = sorted(s.value for s in _ALLOWED_TRANSITIONS[current])
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"invalid status transition '{current.value}' → '{next_status.value}'. "
+                f"Allowed next states: {allowed or ['none (terminal state)']}"
+            ),
+        )
 
 
 @router.post("", response_model=InvoiceOut, status_code=201)
@@ -42,6 +63,8 @@ def update_invoice(
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
     updates = payload.model_dump(exclude_unset=True)
+    if "status" in updates and updates["status"] is not None:
+        _assert_valid_transition(invoice.status, updates["status"])
     for field, value in updates.items():
         setattr(invoice, field, value)
     db.commit()
