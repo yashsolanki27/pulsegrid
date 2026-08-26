@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Customer, Order, Ticket
 from app.schemas import OrderCreate, OrderOut, OrderUpdate
+from app.sync import sync_order_to_erp
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -35,6 +36,11 @@ def create_order(payload: OrderCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=404, detail="customer not found")
     db.refresh(order)
+    # Trigger CRM→ERP sync AFTER the CRM commit so the order always persists
+    # regardless of sync outcome.  sync_order_to_erp intentionally fails ~10%
+    # of the time (see app/sync.py and docs/business-logic.md) — errors are
+    # swallowed inside the function; order creation returns 201 in all cases.
+    sync_order_to_erp(crm_order_id=order.id, crm_customer_id=order.customer_id)
     return order
 
 

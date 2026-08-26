@@ -31,3 +31,9 @@
 - [x] Basic tests (Postman/Newman) — 44/44 assertions passed (25 requests)
 - [x] Seed script (synthetic data)
 - N/A Duplicate-entity detection — invoices/inventory/accounts have no same-entity-different-id case; accounts already 1:1 constrained to crm_customer_id via soft reference (see business-logic.md)
+
+## Phase 3: CRM↔ERP integration — checklist
+
+- [x] integration-sync: order creation in crm-service triggers ERP account lookup/create + draft invoice creation; ~10% intentional silent failure rate via feature-flagged random gate (SYNC_FAILURE_RATE env var, default 0.10); order always returns 201 regardless of sync outcome
+- [ ] integration-sync: Postman/Newman tests
+

@@ -1,6 +1,30 @@
 # Business Logic — Not Inferable From Code
 
 - CRM→ERP sync fails ~10% of time, feature-flagged, INTENTIONAL. Do not fix.
+
+## CRM→ERP sync failure injection ⚠️ DO NOT "FIX" ⚠️
+
+**This is not a bug. Do not remove, retry around, or reduce this failure rate.**
+
+On every order creation the integration-sync module (`crm-service/app/sync.py`)
+runs a coin-flip before making any HTTP call:
+
+```python
+# crm-service/app/sync.py — _should_fail_this_sync()
+return random.random() < _SYNC_FAILURE_RATE   # default 0.10 = 10 %
+```
+
+- If the coin-flip fires (~10 % of calls): sync is **silently skipped** — a
+  WARNING is logged, no HTTP call is made, no exception is raised.
+- The order creation endpoint returns **HTTP 201 in all cases** — sync outcome
+  never blocks or alters the CRM response.
+- The `SYNC_FAILURE_RATE` env var controls the probability (default `0.10`).
+  Setting it to `0` in production violates the Phase 4 design contract.
+
+**Why this exists:** The reconciliation-job (Phase 4) needs real gaps between
+CRM orders and ERP invoices to have meaningful data to catch and report.
+Making sync 100 % reliable would leave the reconciliation-job nothing to do,
+which defeats the demo milestone. The ~10 % gap is the feature, not the fault.
 - Severity mapping (low/high/critical) for LogPulse reports: [UNRESOLVED — see blocked.md]
 - LogPulse API contract (endpoint, payload, auth header): [UNRESOLVED — verify against
   live /docs before Phase 4/5, see blocked.md]
