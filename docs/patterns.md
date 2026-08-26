@@ -90,3 +90,33 @@ When a field must be non-negative (or satisfy any invariant) at the DB level:
 
 - Base: `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`
 - CMD: `uv run --no-dev uvicorn app.main:app --host 0.0.0.0 --port <port>`
+
+## Seed script pattern
+
+Each service has `scripts/seed.py`, run via `uv run python -m scripts.seed`.
+
+**Conventions (both services mirror this pattern):**
+- Run-once by default: refuses to execute if primary table already has rows.
+- `--force` flag: wipes all seeded tables in dependency order, then reseeds.
+- Data constants defined as module-level tuples at the top of the file.
+- Uses `SessionLocal()` directly (not `get_db()` generator — script context).
+- `db.flush()` after inserts that produce IDs needed for subsequent rows.
+- Single `db.commit()` at end (atomic seed).
+- Print summary of seeded row counts on success.
+
+**Lifecycle entities (e.g. Invoice):**
+- Do not set terminal status directly — insert as the valid initial state
+  (`draft`) and replay each transition using `_assert_valid_transition` from
+  the router module. This proves the fixture data follows the transition DAG.
+- Example: `draft → sent → paid` is written as two explicit calls to the guard,
+  then `inv.status = next_status` for each step.
+
+**Cross-DB soft references (e.g. `crm_customer_id`, `crm_order_id`):**
+- Use integer IDs that match the other service's seed data (e.g. 1–5 for the
+  first five CRM customers). Document the assumption in the script's docstring.
+- These are safe placeholder ints even if the other service is not running —
+  no DB-level FK constraint is enforced.
+
+**Inventory / non-negative constraint:**
+- Seed data uses strictly positive quantities (> 0); quantity=0 is valid at
+  runtime but intentionally avoided in fixtures to represent active stock.
