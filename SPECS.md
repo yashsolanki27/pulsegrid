@@ -20,3 +20,13 @@
 - [x] Duplicate-customer detection (same email, different id)
 - [x] Basic tests (Postman/Newman)
 - [ ] Seed script (synthetic data)
+
+## Phase 2: ERP service — checklist
+
+- [x] Project scaffold (FastAPI app, folder structure, uv env) — invoices + inventory only; accounts BLOCKED (see blocked.md)
+- [ ] DB schema: accounts (BLOCKED — entity purpose undefined, see blocked.md)
+- [ ] CRUD endpoints: invoices
+- [ ] CRUD endpoints: inventory
+- [ ] CRUD endpoints: accounts (BLOCKED — depends on schema)
+- [ ] Basic tests (Postman/Newman)
+- [ ] Seed script (synthetic data)
