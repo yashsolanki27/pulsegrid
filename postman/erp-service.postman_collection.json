@@ -1,0 +1,628 @@
+{
+	"info": {
+		"_postman_id": "e2f3a4b5-6c7d-4e8f-9a0b-1c2d3e4f5a6b",
+		"name": "PulseGrid — erp-service",
+		"description": "CRUD + edge-case coverage for erp-service (invoices, inventory, accounts).\n\nCovers:\n- Full CRUD for all three entities\n- Invoice transition guard: valid transition succeeds (200), invalid returns 422\n- Inventory CHECK: negative quantity attempt returns 422 (DB-layer guard)\n\nRequests run in collection order (Newman default). IDs chain via collection variables. Safe to re-run (resources created and cleaned up per run).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "baseUrl", "value": "http://localhost:8001" },
+		{ "key": "invoice_id", "value": "" },
+		{ "key": "item_id", "value": "" },
+		{ "key": "account_id", "value": "" }
+	],
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health check",
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/health"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"status ok\", () => pm.expect(pm.response.json()).to.eql({ status: \"ok\" }));"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Invoices",
+			"item": [
+				{
+					"name": "Create invoice",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"const body = pm.response.json();",
+									"pm.test(\"has id, crm_order_id, status=draft, created_at\", () => {",
+									"  pm.expect(body.id).to.be.a(\"number\");",
+									"  pm.expect(body.crm_order_id).to.eql(42);",
+									"  pm.expect(body.status).to.eql(\"draft\");",
+									"  pm.expect(body.created_at).to.be.a(\"string\");",
+									"});",
+									"pm.collectionVariables.set(\"invoice_id\", body.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"crm_order_id\": 42\n}"
+						},
+						"url": "{{baseUrl}}/invoices"
+					}
+				},
+				{
+					"name": "List invoices",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"const list = pm.response.json();",
+									"pm.test(\"array contains created invoice\", () => {",
+									"  pm.expect(list).to.be.an(\"array\");",
+									"  pm.expect(list.some(i => i.id === Number(pm.collectionVariables.get(\"invoice_id\")))).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/invoices"
+					}
+				},
+				{
+					"name": "Get invoice by id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"correct invoice returned\", () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.id).to.eql(Number(pm.collectionVariables.get(\"invoice_id\")));",
+									"  pm.expect(body.status).to.eql(\"draft\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/invoices/{{invoice_id}}"
+					}
+				},
+				{
+					"name": "Edge: get missing invoice → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'invoice not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"invoice not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/invoices/999999"
+					}
+				},
+				{
+					"name": "Transition guard: draft → sent (VALID, expect 200)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK — valid transition draft→sent\", () => pm.response.to.have.status(200));",
+									"pm.test(\"status is now sent\", () => pm.expect(pm.response.json().status).to.eql(\"sent\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"sent\"\n}"
+						},
+						"url": "{{baseUrl}}/invoices/{{invoice_id}}"
+					}
+				},
+				{
+					"name": "Transition guard: sent → draft (INVALID, expect 422)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"422 Unprocessable — invalid transition sent→draft\", () => pm.response.to.have.status(422));",
+									"pm.test(\"detail mentions invalid transition\", () => {",
+									"  const detail = pm.response.json().detail;",
+									"  pm.expect(detail).to.be.a(\"string\");",
+									"  pm.expect(detail).to.include(\"invalid status transition\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"draft\"\n}"
+						},
+						"url": "{{baseUrl}}/invoices/{{invoice_id}}"
+					}
+				},
+				{
+					"name": "Transition guard: sent → paid (VALID, expect 200)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK — valid transition sent→paid\", () => pm.response.to.have.status(200));",
+									"pm.test(\"status is now paid\", () => pm.expect(pm.response.json().status).to.eql(\"paid\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"paid\"\n}"
+						},
+						"url": "{{baseUrl}}/invoices/{{invoice_id}}"
+					}
+				},
+				{
+					"name": "Transition guard: paid → overdue (terminal, expect 422)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"422 Unprocessable — paid is terminal, no transitions allowed\", () => pm.response.to.have.status(422));",
+									"pm.test(\"detail mentions terminal state\", () => {",
+									"  const detail = pm.response.json().detail;",
+									"  pm.expect(detail).to.be.a(\"string\");",
+									"  pm.expect(detail).to.include(\"invalid status transition\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"overdue\"\n}"
+						},
+						"url": "{{baseUrl}}/invoices/{{invoice_id}}"
+					}
+				},
+				{
+					"name": "Delete invoice",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/invoices/{{invoice_id}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Inventory",
+			"item": [
+				{
+					"name": "Create inventory item",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"const body = pm.response.json();",
+									"pm.test(\"has id, name, quantity=10, created_at\", () => {",
+									"  pm.expect(body.id).to.be.a(\"number\");",
+									"  pm.expect(body.name).to.eql(\"Widget A\");",
+									"  pm.expect(body.quantity).to.eql(10);",
+									"  pm.expect(body.created_at).to.be.a(\"string\");",
+									"});",
+									"pm.collectionVariables.set(\"item_id\", body.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Widget A\",\n  \"quantity\": 10\n}"
+						},
+						"url": "{{baseUrl}}/inventory"
+					}
+				},
+				{
+					"name": "List inventory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"const list = pm.response.json();",
+									"pm.test(\"array contains created item\", () => {",
+									"  pm.expect(list).to.be.an(\"array\");",
+									"  pm.expect(list.some(i => i.id === Number(pm.collectionVariables.get(\"item_id\")))).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/inventory"
+					}
+				},
+				{
+					"name": "Get inventory item by id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"correct item returned\", () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.id).to.eql(Number(pm.collectionVariables.get(\"item_id\")));",
+									"  pm.expect(body.name).to.eql(\"Widget A\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/inventory/{{item_id}}"
+					}
+				},
+				{
+					"name": "Edge: get missing inventory item → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'inventory item not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"inventory item not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/inventory/999999"
+					}
+				},
+				{
+					"name": "Update inventory item (PATCH name + quantity)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"name and quantity updated\", () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.name).to.eql(\"Widget A Updated\");",
+									"  pm.expect(body.quantity).to.eql(5);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Widget A Updated\",\n  \"quantity\": 5\n}"
+						},
+						"url": "{{baseUrl}}/inventory/{{item_id}}"
+					}
+				},
+				{
+					"name": "Edge (Pydantic): create item with quantity=-1 → 422",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"422 Unprocessable — Pydantic ge=0 guard\", () => pm.response.to.have.status(422));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Negative Widget\",\n  \"quantity\": -1\n}"
+						},
+						"url": "{{baseUrl}}/inventory"
+					}
+				},
+				{
+					"name": "Edge (Pydantic): update quantity to -5 → 422",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"422 Unprocessable — Pydantic ge=0 guard on PATCH\", () => pm.response.to.have.status(422));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"quantity\": -5\n}"
+						},
+						"url": "{{baseUrl}}/inventory/{{item_id}}"
+					}
+				},
+				{
+					"name": "Delete inventory item",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/inventory/{{item_id}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Accounts",
+			"item": [
+				{
+					"name": "Create account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+									"const body = pm.response.json();",
+									"pm.test(\"has id, crm_customer_id, balance, credit_limit, created_at\", () => {",
+									"  pm.expect(body.id).to.be.a(\"number\");",
+									"  pm.expect(body.crm_customer_id).to.eql(100);",
+									"  pm.expect(parseFloat(body.balance)).to.eql(250.00);",
+									"  pm.expect(parseFloat(body.credit_limit)).to.eql(1000.00);",
+									"  pm.expect(body.created_at).to.be.a(\"string\");",
+									"});",
+									"pm.collectionVariables.set(\"account_id\", body.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"crm_customer_id\": 100,\n  \"balance\": 250.00,\n  \"credit_limit\": 1000.00\n}"
+						},
+						"url": "{{baseUrl}}/accounts"
+					}
+				},
+				{
+					"name": "List accounts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"const list = pm.response.json();",
+									"pm.test(\"array contains created account\", () => {",
+									"  pm.expect(list).to.be.an(\"array\");",
+									"  pm.expect(list.some(a => a.id === Number(pm.collectionVariables.get(\"account_id\")))).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/accounts"
+					}
+				},
+				{
+					"name": "Get account by id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"correct account returned\", () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.id).to.eql(Number(pm.collectionVariables.get(\"account_id\")));",
+									"  pm.expect(body.crm_customer_id).to.eql(100);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/accounts/{{account_id}}"
+					}
+				},
+				{
+					"name": "Edge: get missing account → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+									"pm.test(\"detail is 'account not found'\", () => pm.expect(pm.response.json().detail).to.eql(\"account not found\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{baseUrl}}/accounts/999999"
+					}
+				},
+				{
+					"name": "Update account (PATCH balance)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+									"pm.test(\"balance updated, credit_limit unchanged\", () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(parseFloat(body.balance)).to.eql(500.00);",
+									"  pm.expect(parseFloat(body.credit_limit)).to.eql(1000.00);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"balance\": 500.00\n}"
+						},
+						"url": "{{baseUrl}}/accounts/{{account_id}}"
+					}
+				},
+				{
+					"name": "Edge: create account with negative balance → 422",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"422 Unprocessable — Pydantic ge=0 guard on balance\", () => pm.response.to.have.status(422));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"crm_customer_id\": 101,\n  \"balance\": -100.00\n}"
+						},
+						"url": "{{baseUrl}}/accounts"
+					}
+				},
+				{
+					"name": "Delete account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"204 No Content\", () => pm.response.to.have.status(204));",
+									"[\"invoice_id\", \"item_id\", \"account_id\"].forEach(k => pm.collectionVariables.set(k, \"\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"url": "{{baseUrl}}/accounts/{{account_id}}"
+					}
+				}
+			]
+		}
+	]
+}

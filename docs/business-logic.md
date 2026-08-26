@@ -6,6 +6,7 @@
   live /docs before Phase 4/5, see blocked.md]
 - No pricing/billing/multi-tenant logic — explicitly out of scope, not missing.
 - Dedup rule: same email + different id = duplicate. No fuzzy matching in v1.
+- Dup-detection N/A for ERP entities (invoices, inventory, accounts): no same-entity-different-id case exists; accounts are already 1:1 constrained to crm_customer_id via soft reference (one account per CRM customer by convention).
 - Access control: single-tenant login gate only. No RBAC.
 
 ## Account entity (ERP)

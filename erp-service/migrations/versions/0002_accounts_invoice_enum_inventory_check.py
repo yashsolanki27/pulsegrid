@@ -30,9 +30,20 @@ def upgrade() -> None:
     invoicestatus_enum.create(op.get_bind(), checkfirst=True)
 
     # 2. Alter Invoice.status: String → invoicestatus enum.
-    #    Existing rows had server_default="pending" (not a valid enum value);
-    #    migrate them to "draft" before changing the column type.
+    #    Existing rows had server_default="pending" (not a valid enum value).
+    #    Step a: migrate row data to "draft".
+    #    Step b: drop the old server_default (Postgres won't let us change the
+    #            column type while an invalid default is attached).
+    #    Step c: change column type using USING cast.
+    #    Step d: restore the server_default as the new enum value.
     op.execute("UPDATE invoices SET status = 'draft'")
+    op.alter_column(
+        "invoices",
+        "status",
+        server_default=None,          # drop 'pending' default first
+        existing_type=sa.String(64),
+        existing_nullable=False,
+    )
     op.alter_column(
         "invoices",
         "status",
@@ -40,7 +51,13 @@ def upgrade() -> None:
         existing_type=sa.String(64),
         existing_nullable=False,
         postgresql_using="status::invoicestatus",
-        server_default="draft",
+    )
+    op.alter_column(
+        "invoices",
+        "status",
+        server_default="draft",       # re-attach correct default
+        existing_type=invoicestatus_enum,
+        existing_nullable=False,
     )
 
     # 3. Add CHECK constraint to inventory.quantity.

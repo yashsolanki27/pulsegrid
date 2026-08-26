@@ -29,6 +29,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        # Revision IDs like '0002_accounts_invoice_enum_inventory_check' are 42
+        # chars — longer than Alembic's default VARCHAR(32).
+        version_num_col_length=64,
     )
 
     with context.begin_transaction():
@@ -43,7 +46,11 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            version_num_col_length=64,
+        )
 
         with context.begin_transaction():
             context.run_migrations()
