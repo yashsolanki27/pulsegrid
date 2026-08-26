@@ -33,3 +33,4 @@
 - `quantity` must be >= 0 at all times (no backorder / negative-stock in v1).
 - Enforced at two layers: Pydantic `ge=0` (API layer) + DB CHECK constraint
   (`ck_inventory_quantity_nonneg`). DB violation returns HTTP 422 (not 500).
+- Note: the qty>0 seed choice (commit 17b2700) was not user-specified — it's a reasonable agent decision to represent actively-stocked demo data, not a documented business rule. CHECK constraint itself still permits 0.
