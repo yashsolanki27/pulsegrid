@@ -29,5 +29,5 @@
 - [x] CRUD endpoints: inventory
 - [x] CRUD endpoints: accounts
 - [x] Basic tests (Postman/Newman) — 44/44 assertions passed (25 requests)
-- [ ] Seed script (synthetic data)
+- [x] Seed script (synthetic data)
 - N/A Duplicate-entity detection — invoices/inventory/accounts have no same-entity-different-id case; accounts already 1:1 constrained to crm_customer_id via soft reference (see business-logic.md)
