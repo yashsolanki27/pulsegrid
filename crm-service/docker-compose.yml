@@ -5,10 +5,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: crm
+    volumes:
+      - crm_db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    volumes:
-      - crm_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
 
 volumes:
-  crm_pgdata:
+  crm_db_data:
