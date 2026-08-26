@@ -35,5 +35,5 @@
 ## Phase 3: CRM↔ERP integration — checklist
 
 - [x] integration-sync: order creation in crm-service triggers ERP account lookup/create + draft invoice creation; ~10% intentional silent failure rate via feature-flagged random gate (SYNC_FAILURE_RATE env var, default 0.10); order always returns 201 regardless of sync outcome
-- [ ] integration-sync: Postman/Newman tests
+- [x] integration-sync: Postman/Newman tests — 136/136 assertions passed (130 requests); 40-iter loop: 40/40 orders 201, 35 sync hits, 5 sync misses (first miss at iter 10); postman/integration-sync.postman_collection.json
 

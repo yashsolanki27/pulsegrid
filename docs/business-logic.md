@@ -25,6 +25,7 @@ return random.random() < _SYNC_FAILURE_RATE   # default 0.10 = 10 %
 CRM orders and ERP invoices to have meaningful data to catch and report.
 Making sync 100 % reliable would leave the reconciliation-job nothing to do,
 which defeats the demo milestone. The ~10 % gap is the feature, not the fault.
+- Reconciliation-job (Phase 4) detects sync failures by directly comparing CRM and ERP data (e.g. an order with no matching invoice) — no failure-flag or status field exists for this by design.
 - Severity mapping (low/high/critical) for LogPulse reports: [UNRESOLVED — see blocked.md]
 - LogPulse API contract (endpoint, payload, auth header): [UNRESOLVED — verify against
   live /docs before Phase 4/5, see blocked.md]
