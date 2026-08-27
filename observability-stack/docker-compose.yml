@@ -1,0 +1,169 @@
+# PulseGrid observability stack — Docker Compose
+#
+# Services:
+#   prometheus        — scrapes crm-service, erp-service, webhook-receiver, pushgateway
+#   alertmanager      — receives Prometheus alerts, routes to webhook-receiver
+#   loki              — log aggregation
+#   promtail          — log collector (Docker service discovery)
+#   grafana           — dashboards (Prometheus + Loki datasources, auto-provisioned)
+#   pushgateway       — metrics ingestion point for reconciliation-job (one-shot script)
+#   webhook-receiver  — FastAPI; Alertmanager POSTs here; forwards firing alerts to LogPulse
+#
+# Port map (host):
+#   3000  — Grafana UI
+#   9090  — Prometheus UI
+#   9091  — Pushgateway
+#   9093  — Alertmanager UI
+#   9094  — webhook-receiver (internal service; also exposed for debugging)
+#   3100  — Loki (internal; not exposed to host)
+#
+# Prerequisites:
+#   - crm-service running on host:8000 (or adjust CRM_HOST below)
+#   - erp-service running on host:8001 (or adjust ERP_HOST below)
+#   - Both services must have /metrics enabled (prometheus-fastapi-instrumentator)
+#
+# To start:
+#   docker compose -f observability-stack/docker-compose.yml up --build -d
+#
+# Environment variables (override via .env or shell):
+#   CRM_HOST               — default: host.docker.internal (Docker Desktop / Mac/Win)
+#   ERP_HOST               — default: host.docker.internal
+#   LOGPULSE_URL           — default: https://log-pulse.up.railway.app/triage
+#   DEDUP_COOLDOWN_HOURS   — default: 24
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Prometheus
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: pulsegrid-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Alertmanager
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: pulsegrid-alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Pushgateway — metrics ingestion for reconciliation-job (one-shot script)
+  # ---------------------------------------------------------------------------
+  pushgateway:
+    image: prom/pushgateway:v1.9.0
+    container_name: pulsegrid-pushgateway
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Loki — log aggregation
+  # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: pulsegrid-loki
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Promtail — Docker log collector
+  # ---------------------------------------------------------------------------
+  promtail:
+    image: grafana/promtail:3.1.0
+    container_name: pulsegrid-promtail
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Grafana — dashboards
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: pulsegrid-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: pulsegrid
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # Webhook receiver — Alertmanager → LogPulse bridge
+  # Built from the monorepo root context so pulsegrid_common path dep resolves.
+  # ---------------------------------------------------------------------------
+  webhook-receiver:
+    build:
+      context: ..
+      dockerfile: observability-stack/webhook-receiver/Dockerfile
+    container_name: pulsegrid-webhook-receiver
+    environment:
+      LOGPULSE_URL: ${LOGPULSE_URL:-https://log-pulse.up.railway.app/triage}
+      DEDUP_DB_PATH: /data/alert_dedup_state.db
+      DEDUP_COOLDOWN_HOURS: ${DEDUP_COOLDOWN_HOURS:-24}
+    volumes:
+      - webhook_dedup:/data
+    ports:
+      - "9094:9094"
+    restart: unless-stopped
+    logging: *default-logging
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  loki_data:
+  grafana_data:
+  webhook_dedup:

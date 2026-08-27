@@ -1,0 +1,38 @@
+# Alertmanager configuration for PulseGrid
+# Routes all alerts to the PulseGrid webhook receiver, which forwards to LogPulse.
+#
+# Contract (same as Phase 4/5):
+#   - No auth on the webhook receiver endpoint.
+#   - Alertmanager sends JSON POST to http://webhook-receiver:9094/webhook.
+#   - Retry behavior: Alertmanager handles its own retry to the receiver;
+#     the receiver handles retry to LogPulse (one retry on 502/network only).
+
+global:
+  # How long to wait before sending a notification if something already fired.
+  resolve_timeout: 5m
+
+route:
+  # Default receiver for all alerts
+  receiver: pulsegrid-webhook
+  group_by:
+    - alertname
+    - job
+    - instance
+  # Wait to batch alerts from the same group before firing
+  group_wait: 30s
+  # Minimum time between re-notifications of the same alert group
+  group_interval: 5m
+  # How long to wait before re-sending a notification for a firing alert
+  repeat_interval: 4h
+
+receivers:
+  - name: pulsegrid-webhook
+    webhook_configs:
+      - url: "http://webhook-receiver:9094/webhook"
+        send_resolved: false
+        # Alertmanager timeout for calling the webhook receiver
+        http_config:
+          follow_redirects: true
+        max_alerts: 0
+
+inhibit_rules: []

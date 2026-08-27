@@ -1,0 +1,108 @@
+# PulseGrid alert rules
+# Targets: crm-service, erp-service, webhook-receiver (via prometheus-fastapi-instrumentator)
+# and reconciliation-job (via Pushgateway).
+#
+# Metric names used here are from prometheus-fastapi-instrumentator defaults:
+#   http_requests_total{method, handler, status_code}
+#   http_request_duration_seconds{method, handler}
+# and from Prometheus built-in up{job, instance}.
+#
+# reconciliation-job pushes:
+#   reconciliation_mismatches_total — count of detected CRM/ERP mismatches per run
+#   reconciliation_run_total        — count of total orders checked per run
+
+groups:
+  - name: pulsegrid.service_availability
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # Service down: target unreachable for > 1 minute
+      # -----------------------------------------------------------------------
+      - alert: ServiceDown
+        expr: up{job=~"crm-service|erp-service|webhook-receiver"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down (instance {{ $labels.instance }})"
+          description: >
+            Prometheus cannot reach {{ $labels.job }} at {{ $labels.instance }}.
+            Service has been unreachable for more than 1 minute.
+            Integration failure detected — dependent workflows (CRM→ERP sync,
+            reconciliation) may be impacted.
+
+  - name: pulsegrid.error_rate
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # High HTTP 5xx error rate: >5% of requests in last 5 min
+      # -----------------------------------------------------------------------
+      - alert: HighErrorRate
+        expr: >
+          (
+            sum by(job, instance) (
+              rate(http_requests_total{status_code=~"5.."}[5m])
+            )
+          )
+          /
+          (
+            sum by(job, instance) (
+              rate(http_requests_total[5m])
+            )
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }} ({{ $labels.instance }})"
+          description: >
+            {{ $labels.job }} at {{ $labels.instance }} has a 5xx error rate above 5%
+            over the last 5 minutes. Integration failure detected — service errors
+            may indicate downstream CRM→ERP sync failures or data integrity issues.
+
+  - name: pulsegrid.reconciliation
+    interval: 60s
+    rules:
+      # -----------------------------------------------------------------------
+      # Reconciliation mismatch rate above threshold
+      # Fires when the ratio of mismatches to total checked orders exceeds 20%.
+      # The ~10% intentional sync failure rate is by design; 20% threshold
+      # allows for the expected 10% gap plus reasonable headroom.
+      # -----------------------------------------------------------------------
+      - alert: ReconciliationMismatchRateHigh
+        expr: >
+          (
+            reconciliation_mismatches_total
+            /
+            reconciliation_run_total
+          ) > 0.20
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reconciliation mismatch rate above 20% (job={{ $labels.job }})"
+          description: >
+            The reconciliation job detected a mismatch rate above 20% on the most
+            recent run (mismatches / total orders checked). The expected baseline
+            is ~10% (intentional CRM→ERP sync failure rate). A rate above 20%
+            indicates mismatch detected beyond the designed failure injection —
+            possible data integrity issue or sync failure spike.
+
+      # -----------------------------------------------------------------------
+      # Reconciliation job has not pushed metrics for > 2 hours
+      # Indicates the scheduled job may not be running.
+      # -----------------------------------------------------------------------
+      - alert: ReconciliationJobSilent
+        expr: >
+          absent(reconciliation_run_total)
+          or
+          (time() - reconciliation_run_total) > 7200
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reconciliation job has not run in over 2 hours"
+          description: >
+            No reconciliation_run_total metric from the Pushgateway in the last 2 hours.
+            Integration failure detected — the reconciliation job may be failing silently
+            or not scheduled. Check the job process and Pushgateway connectivity.
