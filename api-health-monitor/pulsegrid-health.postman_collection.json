@@ -1,0 +1,314 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "PulseGrid — API Health Monitor",
+    "description": "Health check collection for crm-service and erp-service.\n\nCoverage strategy:\n- /health on each service (liveness probe)\n- List endpoints on each core entity (read-only, always safe)\n- One POST with a clearly invalid payload to assert 422 validation is alive\n\nEnvironment variables expected (set via Newman --env-var or a .env file):\n  CRM_BASE_URL   — e.g. http://localhost:8000\n  ERP_BASE_URL   — e.g. http://localhost:8001\n\nAssertions: each request asserts the expected 2xx (or 422 for the invalid-payload tests).\nNon-2xx / unexpected codes make Newman exit non-zero, which the GitHub Actions step treats as failure.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "crm_base_url",
+      "value": "http://localhost:8000",
+      "description": "Override with CRM_BASE_URL env var in Newman invocation"
+    },
+    {
+      "key": "erp_base_url",
+      "value": "http://localhost:8001",
+      "description": "Override with ERP_BASE_URL env var in Newman invocation"
+    }
+  ],
+  "item": [
+    {
+      "name": "CRM Service",
+      "item": [
+        {
+          "name": "CRM — Health check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{crm_base_url}}/health",
+              "host": ["{{crm_base_url}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"CRM /health returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"CRM /health body has status ok\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"ok\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CRM — List customers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{crm_base_url}}/customers",
+              "host": ["{{crm_base_url}}"],
+              "path": ["customers"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"CRM GET /customers returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"CRM GET /customers returns an array\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CRM — List orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{crm_base_url}}/orders",
+              "host": ["{{crm_base_url}}"],
+              "path": ["orders"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"CRM GET /orders returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"CRM GET /orders returns an array\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CRM — List tickets",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{crm_base_url}}/tickets",
+              "host": ["{{crm_base_url}}"],
+              "path": ["tickets"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"CRM GET /tickets returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"CRM GET /tickets returns an array\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CRM — Create customer (validation alive check)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"not-an-email\", \"name\": \"\"}"
+            },
+            "url": {
+              "raw": "{{crm_base_url}}/customers",
+              "host": ["{{crm_base_url}}"],
+              "path": ["customers"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"CRM POST /customers with invalid payload returns 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ERP Service",
+      "item": [
+        {
+          "name": "ERP — Health check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{erp_base_url}}/health",
+              "host": ["{{erp_base_url}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"ERP /health returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"ERP /health body has status ok\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"ok\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ERP — List invoices",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{erp_base_url}}/invoices",
+              "host": ["{{erp_base_url}}"],
+              "path": ["invoices"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"ERP GET /invoices returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"ERP GET /invoices returns an array\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ERP — List inventory",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{erp_base_url}}/inventory",
+              "host": ["{{erp_base_url}}"],
+              "path": ["inventory"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"ERP GET /inventory returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"ERP GET /inventory returns an array\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ERP — List accounts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{erp_base_url}}/accounts",
+              "host": ["{{erp_base_url}}"],
+              "path": ["accounts"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"ERP GET /accounts returns 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"ERP GET /accounts returns an array\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ERP — Create invoice (validation alive check)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"crm_order_id\": \"not-an-integer\"}"
+            },
+            "url": {
+              "raw": "{{erp_base_url}}/invoices",
+              "host": ["{{erp_base_url}}"],
+              "path": ["invoices"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"ERP POST /invoices with invalid payload returns 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+# api-health-monitor.yml
+# ======================
+# Scheduled API health check: runs Newman against crm-service and erp-service,
+# then reports any failures to LogPulse via report_failures.py.
+#
+# Schedule: every 15 minutes (*/15 * * * *).
+# Agent-chosen default — not specified in docs/business-logic.md.
+# Tunable: change the cron expression without code change. See patterns.md.
+#
+# Required GitHub Actions secrets (set in Settings → Secrets → Actions):
+#   CRM_BASE_URL    — e.g. https://crm.yourdomain.com  (or Railway URL)
+#   ERP_BASE_URL    — e.g. https://erp.yourdomain.com  (or Railway URL)
+#   LOGPULSE_URL    — default used if absent; override to point to staging
+#
+# Optional env vars (can also be set as secrets):
+#   DEDUP_COOLDOWN_HOURS — default 24; override if running more frequently
+#
+# Newman exit codes:
+#   0  — all tests passed  → report_failures.py runs but finds nothing → no LogPulse call
+#   1  — test/assertion failure → report_failures.py finds failures → LogPulse called
+#
+# The workflow does NOT fail the GitHub Actions run on Newman failure; instead,
+# it always runs report_failures.py (continue-on-error: true on Newman step)
+# so we get LogPulse notifications even when Newman exits non-zero.
+
+name: API Health Monitor
+
+on:
+  schedule:
+    # Every 15 minutes. Agent-chosen default; tunable — see patterns.md.
+    - cron: "*/15 * * * *"
+  # Allow manual trigger for testing / on-demand checks.
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: Newman health check + LogPulse report
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Node.js for Newman ─────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ── 3. Install Newman ─────────────────────────────────────────────────────
+      - name: Install Newman
+        run: npm install -g newman
+
+      # ── 4. Run Newman ─────────────────────────────────────────────────────────
+      # continue-on-error: true — Newman exits 1 on assertion failures; we still
+      # want the report step to run so failures reach LogPulse.
+      - name: Run Newman health checks
+        id: newman
+        continue-on-error: true
+        env:
+          CRM_BASE_URL: ${{ secrets.CRM_BASE_URL }}
+          ERP_BASE_URL: ${{ secrets.ERP_BASE_URL }}
+        run: |
+          newman run api-health-monitor/pulsegrid-health.postman_collection.json \
+            --env-var "crm_base_url=${CRM_BASE_URL}" \
+            --env-var "erp_base_url=${ERP_BASE_URL}" \
+            --reporters cli,json \
+            --reporter-json-export newman-report.json \
+            --timeout-request 15000 \
+            --timeout 60000
+
+      # ── 5. Set up Python for report_failures.py ───────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── 6. Install uv ─────────────────────────────────────────────────────────
+      - name: Install uv
+        run: pip install uv
+
+      # ── 7. Install api-health-monitor dependencies ────────────────────────────
+      - name: Install api-health-monitor dependencies
+        run: uv pip install --system -e api-health-monitor
+
+      # ── 8. Report failures to LogPulse ────────────────────────────────────────
+      # Runs regardless of Newman outcome (step 4 has continue-on-error: true).
+      # If Newman passed, the report finds no failures and exits cleanly.
+      # Dedup state is ephemeral per run (GitHub Actions runner is fresh each time).
+      # This means dedup is STATELESS across runs — the cooldown cannot span
+      # multiple workflow executions without persisting the SQLite file.
+      # See tech-debt-tracker.md for the tradeoff note on ephemeral dedup state.
+      - name: Report failures to LogPulse
+        env:
+          NEWMAN_REPORT_PATH: newman-report.json
+          LOGPULSE_URL: ${{ secrets.LOGPULSE_URL || 'https://log-pulse.up.railway.app/triage' }}
+          DEDUP_COOLDOWN_HOURS: ${{ vars.DEDUP_COOLDOWN_HOURS || '24' }}
+        run: |
+          python api-health-monitor/report_failures.py
+
+      # ── 9. Upload Newman report as artifact ───────────────────────────────────
+      - name: Upload Newman report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-health-report-${{ github.run_id }}
+          path: newman-report.json
+          retention-days: 7

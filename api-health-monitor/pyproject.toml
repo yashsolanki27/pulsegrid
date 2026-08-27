@@ -1,0 +1,12 @@
+[project]
+name = "api-health-monitor"
+version = "0.1.0"
+description = "PulseGrid API health monitor — Newman runner + LogPulse failure reporter"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pulsegrid-common",
+]
+
+[tool.uv.sources]
+pulsegrid-common = { path = "../pulsegrid_common" }

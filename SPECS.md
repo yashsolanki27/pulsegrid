@@ -6,7 +6,7 @@
 - [x] Phase 2: ERP service
 - [ ] Phase 3: CRM↔ERP integration (~10% intentional failure rate)
 - [x] Phase 4: Reconciliation job → LogPulse (MVP demo milestone)
-- [ ] Phase 5: API health monitor → LogPulse
+- [x] Phase 5: API health monitor → LogPulse
 - [ ] Phase 6: Observability stack → LogPulse
 - [ ] Phase 7: Access control (Azure AD)
 
@@ -44,3 +44,12 @@
 - [x] reconciliation-job/logpulse_client.py: TriageResult defensive deserialization (unknown fields ignored, all nullable); retry logic; no concurrent calls
 - [x] reconciliation-job/models.py: pre-existing shadow ORM models for CRMOrder and ERPInvoice (read-only)
 - [x] docs updated: patterns.md (dedup storage + LogPulse client conventions), tech-debt-tracker.md (SQLite tradeoff + cooldown default), learnings.md (created, LogPulse quirks), blocked.md (both blockers resolved)
+
+## Phase 5: API health monitor — checklist
+
+- [x] pulsegrid_common/: shared library extracted — logpulse_client.py (TriageResult + post_to_logpulse, full contract compliance), dedup.py (generic dedup_key TEXT PRIMARY KEY, replaces order_id-specific schema)
+- [x] reconciliation-job/run.py: updated imports to pull from pulsegrid_common; dedup key changed to f"order:{order_id}" (generic string key); pyproject.toml updated with pulsegrid-common path dependency
+- [x] api-health-monitor/pulsegrid-health.postman_collection.json: covers /health (both services, body assertion), GET list on all 6 entity endpoints (customers, orders, tickets, invoices, inventory, accounts), POST with invalid payload (422 validation alive check per service)
+- [x] api-health-monitor/report_failures.py: reads Newman JSON output; deduplicates via pulsegrid_common.DedupStore (key: "endpoint:{method}:{url}"); calls LogPulse only for new/cooldown-expired failures; real-error-phrasing log_text; same contract rules as Phase 4
+- [x] .github/workflows/api-health-monitor.yml: cron */15 * * * * (agent-chosen default, tunable); Newman runs with continue-on-error:true; report_failures.py always runs after Newman; Newman report uploaded as artifact
+- [x] docs updated: patterns.md (generic dedup, api-health-monitor pattern, schedule interval, ephemeral CI dedup), tech-debt-tracker.md (pulsegrid_common extraction, dedup generalisation, schedule default, ephemeral dedup), learnings.md (Newman quirks, GitHub Actions gotchas, pulsegrid_common pattern)

@@ -53,3 +53,65 @@ When a scheduled job needs to track "last reported" state and has no dedicated
 Postgres DB, a SQLite sidecar file is a clean, portable solution for v1.
 Key constraint: single-writer only. Must migrate to Postgres if job becomes
 multi-instance. See tech-debt-tracker.md for the full note.
+
+---
+
+## Newman / GitHub Actions gotchas (Phase 5, August 2026)
+
+**Source:** Phase 5 api-health-monitor implementation.
+
+1. **Newman exits non-zero on assertion failure.**
+   Use `continue-on-error: true` on the Newman step so subsequent steps (e.g.
+   `report_failures.py`) still run. Without this, the workflow bails before
+   LogPulse can be called — the opposite of what you want.
+
+2. **Newman JSON reporter format — `executions` array.**
+   The JSON reporter output (via `--reporter-json-export`) stores per-request data
+   under `run.executions[*]`. Assertion failures are in `executions[*].assertions[*].error`
+   (null if passed). Request URL is in `executions[*].request.url` — can be a dict
+   with a `raw` key (full URL string) or a plain string depending on version. Always
+   handle both. HTTP status is in `executions[*].response.code`.
+
+3. **GitHub Actions cron: minimum interval is 1 minute.**
+   GitHub Actions does not support sub-minute cron expressions. `*/15 * * * *`
+   (every 15 min) is the finest practical granularity for scheduled health checks.
+   Note: GitHub also throttles scheduled workflows on free plans — actual trigger
+   time may lag by a few minutes under load. For SLA-sensitive monitoring, a
+   dedicated uptime service (e.g. UptimeRobot, Better Uptime) is more reliable.
+
+4. **Ephemeral runner = ephemeral dedup.**
+   Each GitHub Actions job runs on a fresh runner — any local files (SQLite dedup
+   store, Newman JSON report) are lost at the end of the job. The dedup cooldown
+   has no cross-run effect unless the file is explicitly persisted. For Phase 5 MVP
+   this is acceptable (one LogPulse call per failure per run, no intra-run burst).
+   Future fix: `actions/cache` to persist the dedup sidecar, keyed on a stable
+   cache key (e.g. repo+workflow name).
+
+5. **Newman `--env-var` overrides collection variables.**
+   Collection variables (`{{crm_base_url}}`) are overridden at runtime with
+   `--env-var "crm_base_url=<value>"`. This is the correct pattern for CI — do not
+   hardcode URLs in the collection itself. GitHub Actions secrets are injected as
+   environment variables and then passed through to Newman via the run step shell.
+
+6. **Newman timeout flags.**
+   Two separate flags: `--timeout-request <ms>` (per-request timeout) and
+   `--timeout <ms>` (total run timeout). Set both in CI to avoid hanging jobs.
+   Recommended: `--timeout-request 15000 --timeout 60000` for health checks.
+
+---
+
+## pulsegrid_common extraction pattern (Phase 5 refactor)
+
+When two+ components need the same module, extract it into a shared package with
+a local path dependency (`[tool.uv.sources]` in each consumer's `pyproject.toml`).
+
+```toml
+# In each consumer's pyproject.toml:
+[tool.uv.sources]
+pulsegrid-common = { path = "../pulsegrid_common" }
+```
+
+This avoids import path hacks (sys.path manipulation) and keeps dependency
+management clean. Each consumer installs the shared package with `uv pip install -e .`
+(editable mode) so local edits to pulsegrid_common are reflected immediately.
+

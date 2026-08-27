@@ -121,22 +121,38 @@ Each service has `scripts/seed.py`, run via `uv run python -m scripts.seed`.
 - Seed data uses strictly positive quantities (> 0); quantity=0 is valid at
   runtime but intentionally avoided in fixtures to represent active stock.
 
-## Dedup state storage (reconciliation-job)
+## Dedup state storage (generic — pulsegrid_common)
 
-The reconciliation-job maintains its own dedup state to prevent re-reporting the
-same mismatch to LogPulse on every scheduled run (LogPulse has no idempotency).
+All LogPulse callers (reconciliation-job, api-health-monitor, webhook receiver) need
+their own dedup state to prevent re-reporting the same failure on every scheduled run
+(LogPulse has no idempotency).
 
-**Chosen storage: SQLite sidecar file** (`dedup_state.db`, path via `DEDUP_DB_PATH` env var).
-- Schema: `dedup_state(order_id INTEGER PRIMARY KEY, last_reported_at TEXT)`.
-- Rationale: reconciliation-job has no Postgres DB of its own; a lightweight SQLite
-  file avoids a third Postgres instance for a single small table. Portable, survives
-  restarts, works in Docker via a mounted volume. Single-writer workload — SQLite sufficient.
+**Chosen storage: SQLite sidecar file** (path via env var per caller).
+- Schema: `dedup_state(dedup_key TEXT PRIMARY KEY, last_reported_at TEXT)`.
+- Key is a generic string — callers namespace their own keys:
+  - reconciliation-job: `"order:{order_id}"`
+  - api-health-monitor: `"endpoint:{method}:{url_without_query}"`
+- Rationale: jobs have no Postgres DB of their own; a lightweight SQLite file avoids
+  a third Postgres instance. Portable, survives restarts, works in Docker via a mounted
+  volume. Single-writer workload — SQLite sufficient.
 - Alternative considered: Postgres table in CRM or ERP DB — rejected to keep concerns
   separated and avoid cross-DB coupling from the job's state into the service DBs.
 - Cooldown window: 24 hours (`DEDUP_COOLDOWN_HOURS` env var, default 24). Tunable —
   not a business rule. See tech-debt-tracker.md for the tradeoff note.
 
-## LogPulse client conventions (reconciliation-job)
+**Dedup reuse decision (Phase 5 refactor):**
+The original reconciliation-job used `order_id INTEGER PRIMARY KEY`. Phase 5 required
+the same mechanism for api-health-monitor with endpoint-based keys. Rather than
+duplicating the module, the schema was generalised to `dedup_key TEXT PRIMARY KEY`
+and the module extracted into `pulsegrid_common`. This keeps a single implementation
+with zero duplication while remaining backward-compatible (reconciliation-job just
+wraps its keys as `f"order:{order_id}"`). See tech-debt-tracker.md for the SQLite
+sidecar tradeoff note (still applies to all callers).
+
+## LogPulse client conventions (pulsegrid_common)
+
+The LogPulse HTTP client lives in `pulsegrid_common/logpulse_client.py` and is
+imported by all callers. **Do not duplicate it locally.**
 
 - Timeout: 90 s (httpx `timeout=90.0`).
 - Retry: one retry on 502 / network-level errors (`ConnectError`, `RemoteProtocolError`,
@@ -145,5 +161,45 @@ same mismatch to LogPulse on every scheduled run (LogPulse has no idempotency).
   rate limiting — burst protection is PulseGrid's responsibility).
 - Deserialization: `TriageResult.from_dict()` filters to known fields only; all fields
   nullable-safe. Unknown fields from future LogPulse schema changes are silently ignored.
-- Dedup update: only mark `order_id` as reported after a confirmed 200 response.
+- Dedup update: only mark key as reported after a confirmed 200 response.
   Failed calls leave dedup state unchanged so the next run retries.
+
+## api-health-monitor pattern
+
+- **Not a service.** Postman/Newman + GitHub Actions only. No running process.
+- Collection: `api-health-monitor/pulsegrid-health.postman_collection.json`
+  - Uses collection variables `{{crm_base_url}}` / `{{erp_base_url}}` (overridden via
+    Newman `--env-var` in the GitHub Actions step; defaults to localhost for local use).
+  - Coverage: `/health` (liveness + body assertion), GET list on all 6 entity endpoints,
+    one POST with invalid payload per service (422 validation alive check).
+- Newman runs with `--reporters cli,json` and exports `newman-report.json`.
+- `report_failures.py` reads the JSON output and calls LogPulse for failures.
+  Always runs after Newman (Newman step has `continue-on-error: true`).
+- `log_text` phrasing pattern:
+  `"API health check failed: {METHOD} {url} returned {status}, integration failure detected. Test: \"{name}\". Assertion errors: {errors}"`
+  Keywords "API health check failed" and "integration failure detected" hit the ~70% confidence threshold.
+- GitHub Actions secrets: `CRM_BASE_URL`, `ERP_BASE_URL`. Optional: `LOGPULSE_URL`,
+  `DEDUP_COOLDOWN_HOURS` (as a variable, not a secret).
+
+## GitHub Actions schedule interval (api-health-monitor)
+
+Default cron: `*/15 * * * *` (every 15 minutes). Agent-chosen — not specified in
+business-logic.md or user input. This is a tunable, not a business rule.
+Override by editing the `cron:` field in `.github/workflows/api-health-monitor.yml`
+without any code change. Considerations for tuning:
+- More frequent → faster detection, more LogPulse calls (dedup prevents spam within cooldown).
+- Less frequent → quieter, slower detection. Minimum sensible interval for a demo: 15 min.
+- If cooldown (`DEDUP_COOLDOWN_HOURS`) is shorter than the cron interval, the dedup has
+  no effect — keep cooldown >= cron interval (24h default vs 15min cron: fine).
+
+## Ephemeral dedup in CI (GitHub Actions)
+
+GitHub Actions runners are fresh per run — the SQLite dedup sidecar file does NOT
+persist between workflow executions. This means the dedup cooldown has no effect across
+runs in CI: every 15-minute run starts with an empty dedup store and will report
+every failure it finds.
+
+**For Phase 5 MVP this is acceptable** (each failure gets at most one LogPulse call per
+run, not a burst). Future improvement: persist the dedup file via GitHub Actions cache
+or a persistent external store. See tech-debt-tracker.md.
+
