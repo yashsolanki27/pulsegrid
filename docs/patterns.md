@@ -212,3 +212,59 @@ The 24h cooldown window therefore spans across workflow executions as intended: 
 broken endpoint is reported once, then suppressed for 24h regardless of how many
 15-minute runs fire in that window. Dedup key scheme unchanged:
 `endpoint:{method}:{url_without_query}`.
+
+## Prometheus /metrics exposure pattern (all FastAPI services)
+
+All FastAPI services (crm-service, erp-service, webhook-receiver) expose `/metrics`
+using `prometheus-fastapi-instrumentator` via the lifespan hook:
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Instrumentator().instrument(app).expose(app)
+    yield
+
+app = FastAPI(title="<service-name>", lifespan=lifespan)
+```
+
+Add `prometheus-fastapi-instrumentator>=6.1` to `pyproject.toml` dependencies.
+Prometheus scrapes `/metrics` (default path). No auth on the endpoint.
+
+## Alertmanager → webhook-receiver → LogPulse chain
+
+Firing alerts flow: Prometheus → Alertmanager → `POST /webhook` on webhook-receiver →
+`pulsegrid_common.post_to_logpulse()` → LogPulse.
+
+Rules:
+- Only `"firing"` alerts are forwarded; `"resolved"` are logged and discarded.
+- Dedup key: `"alert:{alertname}:{instance}"` (24h cooldown, same pattern as other callers).
+- Sequential LogPulse calls only (no concurrency).
+- 90s timeout, one retry on 502/network (via pulsegrid_common — same contract as Phase 4/5).
+- Dedup state updated only on confirmed 200 from LogPulse.
+- `log_text` phrasing: `"PulseGrid alert firing: {alertname} on {instance} ... Integration failure detected"` — keywords hit ~70% LogPulse confidence threshold.
+
+## Pushgateway metrics push pattern (reconciliation-job)
+
+One-shot scripts that cannot be scraped directly push metrics via Pushgateway.
+reconciliation-job uses raw httpx PUT + Prometheus text exposition format:
+
+```python
+body = (
+    "# HELP reconciliation_run_total ...\n"
+    "# TYPE reconciliation_run_total gauge\n"
+    f"reconciliation_run_total {run_total}\n"
+    ...
+)
+httpx.put(f"{PUSHGATEWAY_URL}/metrics/job/reconciliation-job", content=body,
+          headers={"Content-Type": "text/plain"}, timeout=10.0)
+```
+
+- `PUSHGATEWAY_URL` env var (no trailing slash). If empty, push is silently skipped.
+- Push is best-effort: failure logs WARNING, does not abort the job.
+- Prometheus scrapes Pushgateway with `honor_labels: true` so the `job` label from the
+  push body is preserved.
+- Metric names must match the alert rule expressions in `prometheus/rules.yml`.
