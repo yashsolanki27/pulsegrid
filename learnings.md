@@ -172,5 +172,63 @@ grep for `TemplateResponse` calls with a positional dict argument:
 grep -rn "TemplateResponse(" --include="*.py"
 ```
 
+
 Any call where the second positional arg is `{` (a dict literal) is broken
 on Starlette 1.x.
+
+---
+
+## `prometheus-fastapi-instrumentator` — must not be called inside lifespan (Phase 7, August 2026)
+
+**Source:** crm-service crash-loop on first start after Docker container added.
+
+### What broke
+
+```python
+# BROKEN — instrument() is called inside lifespan, after the app has started
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Instrumentator().instrument(app).expose(app)
+    yield
+
+app = FastAPI(title="crm-service", lifespan=lifespan)
+```
+
+`Instrumentator().instrument(app)` calls `app.add_middleware()` internally.
+Starlette/FastAPI build the middleware stack once at startup — once `lifespan`
+begins executing the app is already running and the middleware stack is frozen.
+Calling `add_middleware()` at that point raises:
+
+```
+RuntimeError: Cannot add middleware after an application has started
+```
+
+### Fix
+
+Move both `instrument()` and `expose()` to **module level**, after the `app`
+object is created but before the app starts serving:
+
+```python
+# CORRECT — module level, before the app starts
+app = FastAPI(title="crm-service")
+app.include_router(...)
+
+Instrumentator().instrument(app).expose(app)
+```
+
+`expose()` only adds a `/metrics` route (not middleware), so it's safe at
+module level too. The lifespan function can be removed entirely if it has no
+other content.
+
+### Who is affected
+
+Any FastAPI service using `prometheus-fastapi-instrumentator` that followed
+the "put setup inside lifespan" pattern. **Both crm-service and erp-service**
+had this identical bug — erp-service was also crash-looping.
+
+### Rule for future phases
+
+> `instrument()` → always module level.
+> `expose()` → module level (simplest) or lifespan (also fine, it's just a route).
+> Never put `instrument()` inside lifespan, startup handlers, or any
+> code that runs after `app = FastAPI(...)` has started accepting requests.
