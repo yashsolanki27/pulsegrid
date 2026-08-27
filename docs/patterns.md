@@ -23,11 +23,28 @@ Each service mirrors the same layout:
     __init__.py
   alembic.ini
   Dockerfile
-  docker-compose.yml  # DB only (no app service entry — run app locally with uv)
+  docker-compose.yml  # scope depends on service type — see convention below
   pyproject.toml
   uv.lock
   .gitignore
 ```
+
+## Docker Compose file convention (per-service)
+
+Each service has its own `docker-compose.yml` at its service root. Scope varies by service type:
+
+- **crm-service**, **erp-service**: DB-only compose (Postgres container). The app itself
+  runs via `uv run uvicorn ...` locally; no app service entry in compose.
+- **access-control**: No DB of its own. The compose file contains the app service entry
+  (commented out, pending Azure AD app registration). Build context must be the repo root
+  to resolve the `pulsegrid_common` path dependency.
+- **observability-stack**: Contains all observability services (Prometheus, Grafana, Loki,
+  Alertmanager, Pushgateway, Promtail, webhook-receiver) in one compose file.
+  No other service's entries belong here.
+
+**Convention:** A service's compose file only contains services owned by that service.
+Cross-service entries (e.g. access-control inside observability-stack) are structurally wrong
+and must not appear.
 
 ## DB URL environment variable convention
 
