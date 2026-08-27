@@ -1,0 +1,24 @@
+[project]
+name = "access-control"
+version = "0.1.0"
+description = "PulseGrid access-control dashboard — Azure AD OAuth2 gated UI"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "httpx>=0.27",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
+    "msal>=1.30",
+    "itsdangerous>=2.2",
+    "python-dotenv>=1.0",
+    "pulsegrid-common",
+]
+
+[tool.uv.sources]
+pulsegrid-common = { path = "../../pulsegrid_common" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

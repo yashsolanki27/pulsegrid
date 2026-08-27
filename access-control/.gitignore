@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+uv.lock
+*.egg-info/
+dist/
