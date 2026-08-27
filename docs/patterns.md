@@ -311,7 +311,9 @@ httpx.put(f"{PUSHGATEWAY_URL}/metrics/job/reconciliation-job", content=body,
 - Use `ConfidentialClientApplication` (not `PublicClientApplication`).
 - Instantiate per request — MSAL is synchronous and not async-safe.
 - Wrap all MSAL calls in `asyncio.to_thread(...)` when calling from FastAPI async routes.
-- Scopes for identity-only login: `["openid", "profile", "email"]`.
+- Scopes for identity-only login: `[]` (empty). MSAL automatically adds `openid`, `profile`,
+  `offline_access` — passing them explicitly raises `ValueError: You cannot use any scope value
+  that is reserved.` Do NOT include OIDC scopes in `AAD_SCOPES`.
 - No Graph API calls needed for a login gate.
 
 ### Auth-gated route pattern

@@ -22,8 +22,12 @@ AAD_REDIRECT_URI: str = os.getenv("AAD_REDIRECT_URI", "http://localhost:8002/aut
 # MSAL authority URL — single-tenant
 AAD_AUTHORITY: str = f"https://login.microsoftonline.com/{AAD_TENANT_ID}"
 
-# Scopes: identity only — no Graph API calls needed
-AAD_SCOPES: list[str] = ["openid", "profile", "email"]
+# Scopes for identity-only login.
+# NOTE: 'openid', 'profile', 'offline_access' are reserved by MSAL and added
+# automatically — do NOT include them here or MSAL raises ValueError.
+# For an auth-gate that only needs id_token claims (name, email), no extra scopes
+# are required. MSAL will still return id_token_claims on callback.
+AAD_SCOPES: list[str] = []
 
 
 # ── Session ───────────────────────────────────────────────────────────────────

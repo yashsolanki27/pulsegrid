@@ -166,3 +166,37 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   routing. More powerful but adds complexity. Not used in Phase 7 (simple route-level check
   is sufficient for a single gated route).
 
+### MSAL reserved scopes — do NOT pass openid/profile/email explicitly
+- `ConfidentialClientApplication.get_authorization_request_url()` raises:
+  `ValueError: You cannot use any scope value that is reserved. Your input: ['openid', 'profile', 'email']`
+  if you include any of `['openid', 'profile', 'offline_access']` in the scopes argument.
+- MSAL adds these OIDC scopes automatically to every Auth Code flow request.
+- **Fix:** set `AAD_SCOPES = []` (empty list). MSAL will still return `id_token_claims`
+  with `name`, `preferred_username`, `oid`, `tid` on callback — no extra scopes needed
+  for an identity-only login gate.
+- This error only surfaces at runtime (when `/auth/login` is hit), not at startup.
+
+### hatchling + uv sync: path-dependency packages need explicit build config
+- When a local path-dependency package (e.g. `pulsegrid_common`) has no `[build-system]`
+  section, uv falls back to setuptools which fails with:
+  `error: Multiple top-level modules discovered in a flat-layout: ['logpulse_client', 'dedup']`
+  if there are multiple `.py` files at the package root.
+- **Fix for pulsegrid_common:** add hatchling build config with `packages = ["."]`:
+  ```toml
+  [tool.hatch.build.targets.wheel]
+  packages = ["."]
+  [build-system]
+  requires = ["hatchling"]
+  build-backend = "hatchling.build"
+  ```
+  `packages = ["."]` means "the current directory IS the package" — correct when the
+  directory name (`pulsegrid_common`) is the intended import name.
+- **Fix for access-control:** hatchling couldn't find an `access_control/` dir to ship.
+  Add `packages = ["app"]` to point to the actual code directory:
+  ```toml
+  [tool.hatch.build.targets.wheel]
+  packages = ["app"]
+  ```
+- These errors only occur in Docker (where path deps are rebuilt from scratch).
+  Local `uv sync` may work without them due to editable installs behaving differently.
+
