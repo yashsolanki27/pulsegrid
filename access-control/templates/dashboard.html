@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseGrid Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      color: #111827;
+    }
+    /* ── Header ─────────────────────────────────────── */
+    header {
+      background: #1a56db;
+      color: #fff;
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header .logo { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.5px; }
+    header .user-info { font-size: 0.85rem; opacity: 0.9; }
+    header .logout-link {
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.8rem;
+      margin-left: 16px;
+      opacity: 0.8;
+      border: 1px solid rgba(255,255,255,0.4);
+      padding: 4px 10px;
+      border-radius: 4px;
+    }
+    header .logout-link:hover { opacity: 1; }
+
+    /* ── Main layout ─────────────────────────────────── */
+    main {
+      max-width: 1100px;
+      margin: 32px auto;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      padding: 24px 28px;
+    }
+    .card.full-width { grid-column: 1 / -1; }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 18px;
+      color: #374151;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 10px;
+    }
+
+    /* ── Stat row ────────────────────────────────────── */
+    .stat-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .stat {
+      flex: 1;
+      min-width: 100px;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 16px 20px;
+      text-align: center;
+    }
+    .stat .number {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat .label { font-size: 0.78rem; color: #6b7280; }
+    .stat.warning .number { color: #d97706; }
+    .stat.ok .number { color: #059669; }
+    .stat.danger .number { color: #dc2626; }
+
+    /* ── Service health ──────────────────────────────── */
+    .health-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .health-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 14px 20px;
+      flex: 1;
+      min-width: 160px;
+    }
+    .dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot.ok { background: #10b981; }
+    .dot.degraded { background: #f59e0b; }
+    .dot.unreachable { background: #ef4444; }
+    .health-label { font-size: 0.9rem; font-weight: 500; }
+    .health-code { font-size: 0.78rem; color: #9ca3af; margin-left: auto; }
+
+    /* ── LogPulse history table ──────────────────────── */
+    .error-note {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th {
+      text-align: left;
+      color: #6b7280;
+      font-weight: 500;
+      padding: 6px 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-classified { background: #d1fae5; color: #065f46; }
+    .badge-unclassified { background: #fee2e2; color: #991b1b; }
+    .confidence { color: #6b7280; }
+    .truncate { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Footer ──────────────────────────────────────── */
+    footer {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 0.75rem;
+      padding: 24px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">PulseGrid</span>
+  <span>
+    <span class="user-info">{{ user_name }} &lt;{{ user_email }}&gt;</span>
+    <a class="logout-link" href="/auth/logout">Sign out</a>
+  </span>
+</header>
+
+<main>
+
+  <!-- ── Reconciliation Mismatches ─────────────────────── -->
+  <div class="card">
+    <h2>Reconciliation Mismatches</h2>
+    {% if mismatch_error %}
+      <div class="error-note">⚠ DB query failed: {{ mismatch_error }}</div>
+    {% else %}
+      <div class="stat-row">
+        <div class="stat ok">
+          <div class="number">{{ total_orders }}</div>
+          <div class="label">Total CRM Orders</div>
+        </div>
+        <div class="stat ok">
+          <div class="number">{{ matched_orders }}</div>
+          <div class="label">Matched (ERP Invoice)</div>
+        </div>
+        <div class="stat {% if mismatch_count > 0 %}warning{% else %}ok{% endif %}">
+          <div class="number">{{ mismatch_count }}</div>
+          <div class="label">Mismatched (no invoice)</div>
+        </div>
+      </div>
+      <p style="font-size:0.78rem;color:#9ca3af;margin:14px 0 0;">
+        ~10% mismatch rate is intentional (see docs/business-logic.md).
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- ── Service Health ────────────────────────────────── -->
+  <div class="card">
+    <h2>Service Health</h2>
+    <div class="health-row">
+      <div class="health-item">
+        <span class="dot {{ crm_health.status }}"></span>
+        <span class="health-label">crm-service</span>
+        <span class="health-code">HTTP {{ crm_health.code }}</span>
+      </div>
+      <div class="health-item">
+        <span class="dot {{ erp_health.status }}"></span>
+        <span class="health-label">erp-service</span>
+        <span class="health-code">HTTP {{ erp_health.code }}</span>
+      </div>
+    </div>
+    <p style="font-size:0.78rem;color:#9ca3af;margin:14px 0 0;">
+      Pings /health on each service. For full metrics, see Grafana (port 3000).
+    </p>
+  </div>
+
+  <!-- ── LogPulse Recent Triage Results ────────────────── -->
+  <div class="card full-width">
+    <h2>Recent LogPulse Triage Results</h2>
+    {% if logpulse_error %}
+      <div class="error-note">⚠ {{ logpulse_error }}</div>
+    {% elif logpulse_history %}
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Category</th>
+            <th>Confidence</th>
+            <th>Root Cause Summary</th>
+            <th>Created At</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in logpulse_history %}
+          <tr>
+            <td>{{ item.id }}</td>
+            <td>
+              <span class="badge {% if item.category != 'unclassified' %}badge-classified{% else %}badge-unclassified{% endif %}">
+                {{ item.category }}
+              </span>
+            </td>
+            <td class="confidence">{{ item.confidence }}%</td>
+            <td class="truncate" title="{{ item.root_cause_summary }}">{{ item.root_cause_summary }}</td>
+            <td style="white-space:nowrap;color:#6b7280;">{{ item.created_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="error-note" style="background:#f0f9ff;border-color:#bae6fd;color:#0c4a6e;">
+        No triage results found in LogPulse history.
+      </div>
+    {% endif %}
+  </div>
+
+</main>
+
+<footer>
+  PulseGrid · Access Control · Phase 7 · Single-tenant Azure AD login gate
+</footer>
+
+</body>
+</html>
