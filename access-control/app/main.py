@@ -37,7 +37,14 @@ _GUID_RE = re.compile(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup validation — catch misconfigurations before the first request."""
-    from app.config import AAD_CLIENT_ID, AAD_CLIENT_SECRET, AAD_TENANT_ID, SESSION_SECRET_KEY
+    from app.config import (
+        AAD_CLIENT_ID,
+        AAD_CLIENT_SECRET,
+        AAD_TENANT_ID,
+        CRM_DATABASE_URL,
+        ERP_DATABASE_URL,
+        SESSION_SECRET_KEY,
+    )
 
     problems = []
     if not AAD_CLIENT_ID:
@@ -54,15 +61,25 @@ async def lifespan(app: FastAPI):
             "In Azure Portal → App registrations → Certificates & secrets, copy the "
             "'Value' column (shown once at creation), NOT the 'Secret ID' column."
         )
+    if not CRM_DATABASE_URL:
+        problems.append(
+            "CRM_DATABASE_URL is not set "
+            "(format: postgresql+psycopg://user:pass@host:port/dbname)"
+        )
+    if not ERP_DATABASE_URL:
+        problems.append(
+            "ERP_DATABASE_URL is not set "
+            "(format: postgresql+psycopg://user:pass@host:port/dbname)"
+        )
 
     if problems:
         for p in problems:
             logger.critical("CONFIG ERROR: %s", p)
         logger.critical(
-            "access-control will start but auth will fail until the above are fixed."
+            "access-control will start but auth/DB will fail until the above are fixed."
         )
     else:
-        logger.info("access-control config OK — AAD and session credentials present.")
+        logger.info("access-control config OK — AAD, session, and DB credentials present.")
 
     yield
 
