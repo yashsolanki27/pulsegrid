@@ -147,7 +147,7 @@
     .badge-classified { background: #d1fae5; color: #065f46; }
     .badge-unclassified { background: #fee2e2; color: #991b1b; }
     .confidence { color: #6b7280; }
-    .truncate { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .root-cause { white-space: normal; word-break: break-word; min-width: 280px; }
 
     /* ── Footer ──────────────────────────────────────── */
     footer {
@@ -242,7 +242,7 @@
               </span>
             </td>
             <td class="confidence">{{ item.confidence }}%</td>
-            <td class="truncate" title="{{ item.root_cause_summary }}">{{ item.root_cause_summary }}</td>
+            <td class="root-cause" title="{{ item.root_cause_summary }}">{{ item.root_cause_summary }}</td>
             <td style="white-space:nowrap;color:#6b7280;">{{ item.created_at }}</td>
           </tr>
           {% endfor %}
