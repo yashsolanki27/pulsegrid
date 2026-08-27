@@ -222,3 +222,32 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   in the path), which for `/auth/callback` gives `/auth`.
 - This bug is silent — no error is logged, the cookie appears to be set (it's in the
   `Set-Cookie` response header), but the browser simply does not send it back on `GET /`.
+
+### MSAL ConfidentialClientApplication: validate_authority=False required in Docker
+
+- **Symptom:** 500 Internal Server Error on `/auth/callback` immediately after login.
+  Traceback: `requests.exceptions.ConnectionError: [Errno 101] Network is unreachable`
+  inside `msal/authority.py` → `tenant_discovery()` → `requests.get(/.well-known/openid-configuration)`.
+- **Root cause:** `ConfidentialClientApplication.__init__` makes a synchronous HTTPS call
+  to `https://login.microsoftonline.com/{tenant_id}/v2.0/.well-known/openid-configuration`
+  at construction time ("tenant discovery" / authority validation). This call:
+  1. Runs on the FastAPI event loop (constructor is called outside `asyncio.to_thread`).
+  2. Fails transiently when Docker's network interface isn't fully initialised yet —
+     Python's socket module sees TCP as working, but `requests`' connection pool gets
+     `ENETUNREACHABLE` in the brief window after container start.
+- **Fix:** `validate_authority=False` in `ConfidentialClientApplication(...)`:
+  ```python
+  ConfidentialClientApplication(
+      client_id=..., client_credential=..., authority=...,
+      validate_authority=False,   # skip __init__-time tenant discovery HTTP call
+  )
+  ```
+  This makes construction instantaneous and network-independent. Azure AD still fully
+  validates the token exchange; we're skipping MSAL's own pre-flight check of the
+  authority URL, which is unnecessary for a single-tenant app with a deterministic
+  authority (`login.microsoftonline.com/{known_tenant_id}`).
+- **Secondary note:** `_msal_app()` is still called inline (not in `asyncio.to_thread`)
+  because with `validate_authority=False` the constructor does no I/O and is safe on the
+  event loop. The actual MSAL methods (`get_authorization_request_url`,
+  `acquire_token_by_authorization_code`) remain wrapped in `asyncio.to_thread` because
+  they do make network calls.

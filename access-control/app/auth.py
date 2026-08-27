@@ -45,11 +45,20 @@ def _msal_app() -> ConfidentialClientApplication:
     MSAL's ConfidentialClientApplication is not async-safe and holds an
     in-memory token cache; for a stateless login-gate with no token reuse,
     instantiating per request is the safest approach.
+
+    validate_authority=False: skips the synchronous HTTPS tenant-discovery call
+    that MSAL makes at __init__ time (fetching /.well-known/openid-configuration).
+    Without this, the constructor blocks the event loop AND fails transiently when
+    the Docker network isn't fully ready (Errno 101 ENETUNREACHABLE).
+    Safe for single-tenant apps: the authority URL is deterministic
+    (login.microsoftonline.com/{tenant_id}); Azure AD still validates the token
+    exchange itself.
     """
     return ConfidentialClientApplication(
         client_id=AAD_CLIENT_ID,
         client_credential=AAD_CLIENT_SECRET,
         authority=AAD_AUTHORITY,
+        validate_authority=False,
     )
 
 
