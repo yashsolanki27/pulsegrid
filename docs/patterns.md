@@ -120,3 +120,30 @@ Each service has `scripts/seed.py`, run via `uv run python -m scripts.seed`.
 **Inventory / non-negative constraint:**
 - Seed data uses strictly positive quantities (> 0); quantity=0 is valid at
   runtime but intentionally avoided in fixtures to represent active stock.
+
+## Dedup state storage (reconciliation-job)
+
+The reconciliation-job maintains its own dedup state to prevent re-reporting the
+same mismatch to LogPulse on every scheduled run (LogPulse has no idempotency).
+
+**Chosen storage: SQLite sidecar file** (`dedup_state.db`, path via `DEDUP_DB_PATH` env var).
+- Schema: `dedup_state(order_id INTEGER PRIMARY KEY, last_reported_at TEXT)`.
+- Rationale: reconciliation-job has no Postgres DB of its own; a lightweight SQLite
+  file avoids a third Postgres instance for a single small table. Portable, survives
+  restarts, works in Docker via a mounted volume. Single-writer workload — SQLite sufficient.
+- Alternative considered: Postgres table in CRM or ERP DB — rejected to keep concerns
+  separated and avoid cross-DB coupling from the job's state into the service DBs.
+- Cooldown window: 24 hours (`DEDUP_COOLDOWN_HOURS` env var, default 24). Tunable —
+  not a business rule. See tech-debt-tracker.md for the tradeoff note.
+
+## LogPulse client conventions (reconciliation-job)
+
+- Timeout: 90 s (httpx `timeout=90.0`).
+- Retry: one retry on 502 / network-level errors (`ConnectError`, `RemoteProtocolError`,
+  `TimeoutException`). Never retry 422/404 — deterministic failures.
+- Concurrency: sequential only; caller must never invoke concurrently (LogPulse has no
+  rate limiting — burst protection is PulseGrid's responsibility).
+- Deserialization: `TriageResult.from_dict()` filters to known fields only; all fields
+  nullable-safe. Unknown fields from future LogPulse schema changes are silently ignored.
+- Dedup update: only mark `order_id` as reported after a confirmed 200 response.
+  Failed calls leave dedup state unchanged so the next run retries.
