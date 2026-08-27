@@ -33,11 +33,25 @@ services:
     env_file:
       - ./.env
     environment:
-      CRM_DATABASE_URL: ${CRM_DATABASE_URL:-postgresql+psycopg://postgres:postgres@host.docker.internal:5432/crm}
-      ERP_DATABASE_URL: ${ERP_DATABASE_URL:-postgresql+psycopg://postgres:postgres@host.docker.internal:5433/erp}
+      # DB URLs use Docker service-name hostnames — access-control joins both
+      # crm-service_default and erp-service_default networks so these resolve.
+      CRM_DATABASE_URL: postgresql+psycopg://postgres:postgres@crm-db:5432/crm
+      ERP_DATABASE_URL: postgresql+psycopg://postgres:postgres@erp-db:5432/erp
       CRM_SERVICE_URL: ${CRM_SERVICE_URL:-http://host.docker.internal:8000}
       ERP_SERVICE_URL: ${ERP_SERVICE_URL:-http://host.docker.internal:8001}
       LOGPULSE_URL: ${LOGPULSE_URL:-https://log-pulse.up.railway.app}
     ports:
       - "8002:8002"
+    networks:
+      - default
+      - crm-service_default
+      - erp-service_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+networks:
+  crm-service_default:
+    external: true
+  erp-service_default:
+    external: true

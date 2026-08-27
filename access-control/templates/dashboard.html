@@ -148,6 +148,21 @@
     .badge-unclassified { background: #fee2e2; color: #991b1b; }
     .confidence { color: #6b7280; }
     .root-cause { white-space: normal; word-break: break-word; min-width: 280px; }
+    .table-scroll {
+      max-height: 320px;   /* ~6 rows at ~52px each */
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+    }
+    /* Keep header pinned while body scrolls */
+    .table-scroll table { border-collapse: collapse; }
+    .table-scroll thead th {
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 1;
+      border-bottom: 1px solid #e5e7eb;
+    }
 
     /* ── Footer ──────────────────────────────────────── */
     footer {
@@ -222,32 +237,34 @@
     {% if logpulse_error %}
       <div class="error-note">⚠ {{ logpulse_error }}</div>
     {% elif logpulse_history %}
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Category</th>
-            <th>Confidence</th>
-            <th>Root Cause Summary</th>
-            <th>Created At</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in logpulse_history %}
-          <tr>
-            <td>{{ item.id }}</td>
-            <td>
-              <span class="badge {% if item.category != 'unclassified' %}badge-classified{% else %}badge-unclassified{% endif %}">
-                {{ item.category }}
-              </span>
-            </td>
-            <td class="confidence">{{ item.confidence }}%</td>
-            <td class="root-cause" title="{{ item.root_cause_summary }}">{{ item.root_cause_summary }}</td>
-            <td style="white-space:nowrap;color:#6b7280;">{{ item.created_at }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Category</th>
+              <th>Confidence</th>
+              <th>Root Cause Summary</th>
+              <th>Created At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in logpulse_history %}
+            <tr>
+              <td>{{ item.id }}</td>
+              <td>
+                <span class="badge {% if item.category != 'unclassified' %}badge-classified{% else %}badge-unclassified{% endif %}">
+                  {{ item.category }}
+                </span>
+              </td>
+              <td class="confidence">{{ item.confidence }}%</td>
+              <td class="root-cause" title="{{ item.root_cause_summary }}">{{ item.root_cause_summary }}</td>
+              <td style="white-space:nowrap;color:#6b7280;">{{ item.created_at }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <div class="error-note" style="background:#f0f9ff;border-color:#bae6fd;color:#0c4a6e;">
         No triage results found in LogPulse history.
