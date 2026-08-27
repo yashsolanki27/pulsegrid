@@ -7,7 +7,7 @@
 - [ ] Phase 3: CRM↔ERP integration (~10% intentional failure rate)
 - [x] Phase 4: Reconciliation job → LogPulse (MVP demo milestone)
 - [x] Phase 5: API health monitor → LogPulse
-- [ ] Phase 6: Observability stack → LogPulse
+- [x] Phase 6: Observability stack → LogPulse
 - [ ] Phase 7: Access control (Azure AD)
 
 ## Phase 1: CRM service — checklist
@@ -53,3 +53,24 @@
 - [x] api-health-monitor/report_failures.py: reads Newman JSON output; deduplicates via pulsegrid_common.DedupStore (key: "endpoint:{method}:{url}"); calls LogPulse only for new/cooldown-expired failures; real-error-phrasing log_text; same contract rules as Phase 4
 - [x] .github/workflows/api-health-monitor.yml: cron */15 * * * * (agent-chosen default, tunable); Newman runs with continue-on-error:true; report_failures.py always runs after Newman; Newman report uploaded as artifact
 - [x] docs updated: patterns.md (generic dedup, api-health-monitor pattern, schedule interval, ephemeral CI dedup), tech-debt-tracker.md (pulsegrid_common extraction, dedup generalisation, schedule default, ephemeral dedup), learnings.md (Newman quirks, GitHub Actions gotchas, pulsegrid_common pattern)
+
+## Phase 6: Observability stack — checklist
+
+- [x] crm-service/app/main.py + pyproject.toml: prometheus-fastapi-instrumentator added; /metrics endpoint exposed via lifespan hook
+- [x] erp-service/app/main.py + pyproject.toml: same as crm-service; /metrics endpoint exposed
+- [x] reconciliation-job/run.py: Pushgateway push added (best-effort); pushes reconciliation_run_total + reconciliation_mismatches_total after each run; PUSHGATEWAY_URL env var (optional, defaults to empty/skip); uses httpx PUT text/plain Prometheus exposition format
+- [x] reconciliation-job/models.py: shadow ORM models for CRMOrder + ERPInvoice extracted from run.py into standalone models.py
+- [x] observability-stack/docker-compose.yml: Prometheus, Alertmanager, Pushgateway, Loki, Promtail, Grafana, webhook-receiver; port map documented; build context at repo root so pulsegrid_common path dep resolves
+- [x] observability-stack/prometheus/prometheus.yml: scrapes crm-service:8000, erp-service:8001, pushgateway:9091 (honor_labels), webhook-receiver:9094, prometheus self; evaluation/scrape interval 15s; alertmanager connection; rule_files → rules.yml
+- [x] observability-stack/prometheus/rules.yml: ServiceDown (up==0 for 1m, critical), HighErrorRate (5xx>5% for 2m, warning), ReconciliationMismatchRateHigh (mismatches/total>20%, fires immediately, warning), ReconciliationJobSilent (absent or stale >2h, warning)
+- [x] observability-stack/alertmanager/alertmanager.yml: routes all alerts to pulsegrid-webhook receiver; group_by alertname+job+instance; group_wait 30s; group_interval 5m; repeat_interval 4h; send_resolved false; no auth
+- [x] observability-stack/loki/loki-config.yml: single-binary mode, TSDB schema v13, filesystem storage, inmemory ring, reject_old_samples 168h
+- [x] observability-stack/promtail/promtail-config.yml: Docker socket discovery, filters to compose project, labels job+container, pushes to loki:3100
+- [x] observability-stack/grafana/provisioning/datasources/datasources.yml: Prometheus (default, uid=prometheus) + Loki (uid=loki) auto-provisioned
+- [x] observability-stack/grafana/provisioning/dashboards/dashboards.yml: provider config pointing to /etc/grafana/provisioning/dashboards
+- [x] observability-stack/grafana/provisioning/dashboards/pulsegrid.json: 6 panels — Service Health (stat, up{} for crm/erp/webhook), Request Rate (timeseries), 5xx Error Rate % (timeseries, threshold 5%/10%), Reconciliation Orders vs Mismatches (timeseries from Pushgateway), Log Volume (Loki rate), Live Logs (Loki stream); 30s refresh; uid=pulsegrid-obs-v1
+- [x] observability-stack/webhook-receiver/app/main.py: FastAPI; POST /webhook; parses Alertmanager payload; firing-only; dedup via pulsegrid_common.DedupStore (key: alert:{alertname}:{instance}); sequential LogPulse calls; 90s timeout (via pulsegrid_common); real-error log_text phrasing; dedup state updated only on confirmed 200; /metrics via prometheus-fastapi-instrumentator lifespan hook
+- [x] observability-stack/webhook-receiver/Dockerfile: base ghcr.io/astral-sh/uv:python3.12-bookworm-slim; build context = repo root; copies pulsegrid_common + webhook-receiver; uv sync --no-dev; CMD port 9094
+- [x] observability-stack/webhook-receiver/pyproject.toml: fastapi, uvicorn, httpx, pulsegrid-common path dep (../../pulsegrid_common)
+- [x] docs/tech-debt-tracker.md: created (Phase 6 tradeoffs logged)
+- [x] docs/learnings.md: created (Phase 6 findings logged)
