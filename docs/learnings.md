@@ -252,7 +252,31 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   `acquire_token_by_authorization_code`) remain wrapped in `asyncio.to_thread` because
   they do make network calls.
 
-### AADSTS7000215 — Secret ID (GUID) pasted instead of Secret Value
+
+### Railway deployment: always use $PORT — not a hardcoded port
+
+- **Symptom:** Build and deploy stages succeeded (container image built, container started)
+  but healthcheck failed after 60s timeout. Container crashed with `unhealthy` status.
+- **Root cause:** Railway injects a `$PORT` environment variable at runtime and probes that
+  port for the healthcheck. The `startCommand` in root `railway.json` had `--port 8002`
+  hardcoded. Railway's assigned port (e.g. 8080) ≠ 8002 → healthcheck hit the wrong port →
+  no HTTP response → timeout.
+- **Fix:** Use `${PORT:-8002}` in the startCommand:
+  ```json
+  "startCommand": "uv run --no-dev uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8002}"
+  ```
+  Bash evaluates `${PORT:-8002}`: uses `$PORT` if set (Railway), falls back to 8002 locally.
+- **Also fix:** Healthcheck timeout 60s → 300s (Railway max). Cold-start on Railway's shared
+  infra (uv dependency resolution + Python startup + MSAL lifespan hook) can exceed 60s on
+  the first boot of a fresh deploy.
+- **Silent trap:** The service-level `access-control/railway.json` already had `${PORT:-8002}`
+  from a previous session; the root `railway.json` (which Railway actually reads) was not
+  updated. Two files, one was wrong, no immediate error surfaced until deploy.
+- **Rule:** When Railway deploys from a monorepo, it reads the **root** `railway.json`.
+  Service-level copies are ignored unless Railway is configured for multi-service monorepo
+  mode (separate services linked per directory). Remove or clearly label the service-level
+  copy to avoid confusion.
+
 
 - **Symptom:** After signing in with Microsoft, the callback returns `AADSTS7000215: Invalid
   client secret provided` and the service redirects to `/auth/login?error=token_error&desc=...`.

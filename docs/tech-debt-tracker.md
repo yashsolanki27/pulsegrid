@@ -117,6 +117,19 @@ Not bugs — known decisions with documented rationale.
 
 ## Phase 7: Access control
 
+### Railway deployment: $PORT env var + healthcheck timeout
+- **Incident:** Build/deploy succeeded but healthcheck timed out after 60s on Railway.
+- **Root cause:** `railway.json` `startCommand` hardcoded `--port 8002`. Railway injects
+  `$PORT` at runtime (dynamic, typically 8080+) and probes **that** port for the healthcheck.
+  Container bound to 8002, Railway probed Railway's assigned port → no response → timeout.
+- **Fix:** Use `${PORT:-8002}` in startCommand — uses Railway's assigned port in production,
+  falls back to 8002 for local/Docker use. Timeout bumped to 300s (Railway max) to survive
+  cold-start latency (uv dep resolution + MSAL init can spike the first boot).
+- **Detection:** Root `railway.json` had the old hardcoded value; `access-control/railway.json`
+  already had the fix from a prior session but was never synced back to the root file.
+- **Lesson:** Railway reads the root `railway.json`; the service-level copy is redundant.
+  Keep them in sync or remove the service-level copy to avoid silent divergence.
+
 ### itsdangerous signed cookie (stateless session)
 - **Decision:** `URLSafeSerializer` signed cookie — no Redis, no DB session table.
 - **Rationale:** Stateless session is sufficient for a single-tenant login gate where
