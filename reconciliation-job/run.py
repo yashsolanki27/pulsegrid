@@ -18,6 +18,10 @@ Cooldown window: 24 hours (DEDUP_COOLDOWN_HOURS env var, tunable).
   triage entry on every scheduled run while still guaranteeing re-report if the
   gap persists across days. Not a business rule -- override as needed.
 
+Imports: logpulse_client and DedupStore are imported from pulsegrid_common (shared
+  library), not from local copies. Dedup key format: f"order:{order_id}" (generic
+  string key as defined by pulsegrid_common.dedup.DedupStore).
+
 Environment variables:
   CRM_DATABASE_URL      -- default postgresql+psycopg://postgres:postgres@localhost:5432/crm
   ERP_DATABASE_URL      -- default postgresql+psycopg://postgres:postgres@localhost:5433/erp
@@ -35,8 +39,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from models import CRMOrder, ERPInvoice
-from dedup import DedupStore
-from logpulse_client import post_to_logpulse
+from pulsegrid_common.dedup import DedupStore
+from pulsegrid_common.logpulse_client import post_to_logpulse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -143,7 +147,8 @@ def run() -> None:
     skipped = 0
 
     for order_id in mismatches:
-        last = dedup.get_last_reported(order_id)
+        dedup_key = f"order:{order_id}"
+        last = dedup.get_last_reported(dedup_key)
         if last is not None and (now - last) < cooldown:
             log.info(
                 "order_id=%d: skipped (last reported %s, cooldown %dh not expired)",
@@ -160,7 +165,7 @@ def run() -> None:
         result = post_to_logpulse(url=LOGPULSE_URL, log_text=log_text, timeout=90.0)
 
         if result is not None:
-            dedup.mark_reported(order_id, now)
+            dedup.mark_reported(dedup_key, now)
             reported += 1
             log.info(
                 "order_id=%d: reported. triage_id=%s category=%s confidence=%s",
