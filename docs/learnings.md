@@ -251,3 +251,20 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   event loop. The actual MSAL methods (`get_authorization_request_url`,
   `acquire_token_by_authorization_code`) remain wrapped in `asyncio.to_thread` because
   they do make network calls.
+
+### AADSTS7000215 — Secret ID (GUID) pasted instead of Secret Value
+
+- **Symptom:** After signing in with Microsoft, the callback returns `AADSTS7000215: Invalid
+  client secret provided` and the service redirects to `/auth/login?error=token_error&desc=...`.
+  The login page re-triggers the OAuth flow → same error → ERR_TOO_MANY_REDIRECTS.
+- **Root cause:** Azure Portal's "Certificates & secrets" page shows **two** columns:
+  - **Secret ID** — a GUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). Useless for auth.
+  - **Value** — the actual secret (e.g. `abc~xyz...`). Shown **once** at creation time only.
+  The GUID was pasted into `AAD_CLIENT_SECRET` instead of the Value.
+- **Detection:** Secret Value is never a plain GUID. Detection heuristic: 36 chars, hex + hyphens only.
+  Added startup validation in `main.py` lifespan that logs `CRITICAL: CONFIG ERROR` if
+  `AAD_CLIENT_SECRET` matches the GUID pattern.
+- **Fix:** In Azure Portal → App registrations → select your app → Certificates & secrets →
+  create a new client secret (or use an existing one if the Value was noted) → copy the
+  **Value** column → paste into `AAD_CLIENT_SECRET` in `.env`.
+  If the original Value was never saved: delete the old secret and create a new one.

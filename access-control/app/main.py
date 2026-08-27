@@ -14,6 +14,8 @@ NOTE: /metrics is intentionally NOT exposed.
   See patterns.md § Access-control service (Phase 7).
 """
 
+import logging
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,9 +25,45 @@ from app.auth import router as auth_router
 from app.dashboard import router as dashboard_router
 
 
+logger = logging.getLogger(__name__)
+
+# GUID pattern — matches a Secret ID, NOT a secret value
+_GUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # No startup/shutdown tasks needed for this service.
+    """Startup validation — catch misconfigurations before the first request."""
+    from app.config import AAD_CLIENT_ID, AAD_CLIENT_SECRET, AAD_TENANT_ID, SESSION_SECRET_KEY
+
+    problems = []
+    if not AAD_CLIENT_ID:
+        problems.append("AAD_CLIENT_ID is not set")
+    if not AAD_TENANT_ID:
+        problems.append("AAD_TENANT_ID is not set")
+    if not SESSION_SECRET_KEY:
+        problems.append("SESSION_SECRET_KEY is not set")
+    if not AAD_CLIENT_SECRET:
+        problems.append("AAD_CLIENT_SECRET is not set")
+    elif _GUID_RE.match(AAD_CLIENT_SECRET):
+        problems.append(
+            "AAD_CLIENT_SECRET looks like a Secret ID (GUID), not a Secret Value. "
+            "In Azure Portal → App registrations → Certificates & secrets, copy the "
+            "'Value' column (shown once at creation), NOT the 'Secret ID' column."
+        )
+
+    if problems:
+        for p in problems:
+            logger.critical("CONFIG ERROR: %s", p)
+        logger.critical(
+            "access-control will start but auth will fail until the above are fixed."
+        )
+    else:
+        logger.info("access-control config OK — AAD and session credentials present.")
+
     yield
 
 
