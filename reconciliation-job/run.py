@@ -22,12 +22,22 @@ Imports: logpulse_client and DedupStore are imported from pulsegrid_common (shar
   library), not from local copies. Dedup key format: f"order:{order_id}" (generic
   string key as defined by pulsegrid_common.dedup.DedupStore).
 
+Pushgateway metrics (Phase 6, optional):
+  If PUSHGATEWAY_URL is set, the job pushes two Prometheus gauges after each run:
+    reconciliation_run_total       -- number of CRM orders checked
+    reconciliation_mismatches_total -- number of orders with no matching ERP invoice
+  Push is best-effort: failure logs a warning but does not abort the job.
+  This allows Prometheus to alert on mismatch rate and job silence
+  (see observability-stack/prometheus/rules.yml).
+
 Environment variables:
   CRM_DATABASE_URL      -- default postgresql+psycopg://postgres:postgres@localhost:5432/crm
   ERP_DATABASE_URL      -- default postgresql+psycopg://postgres:postgres@localhost:5433/erp
   DEDUP_DB_PATH         -- default ./dedup_state.db
   DEDUP_COOLDOWN_HOURS  -- default 24 (tunable, not a business rule)
   LOGPULSE_URL          -- default https://log-pulse.up.railway.app/triage
+  PUSHGATEWAY_URL       -- optional; if set, push run metrics to Prometheus Pushgateway
+                           e.g. http://localhost:9091 (no trailing slash, no /metrics/job/...)
 """
 
 import logging
@@ -63,9 +73,49 @@ ERP_DATABASE_URL = os.getenv(
 DEDUP_DB_PATH = os.getenv("DEDUP_DB_PATH", "./dedup_state.db")
 DEDUP_COOLDOWN_HOURS = int(os.getenv("DEDUP_COOLDOWN_HOURS", "24"))
 LOGPULSE_URL = os.getenv("LOGPULSE_URL", "https://log-pulse.up.railway.app/triage")
+# Optional: Prometheus Pushgateway URL (no trailing slash).
+# If empty/unset, metric push is skipped (best-effort, does not affect job correctness).
+PUSHGATEWAY_URL = os.getenv("PUSHGATEWAY_URL", "")
 
 
-# ---- DB connectivity ---------------------------------------------------------
+# ---- Pushgateway metrics push (Phase 6 -- best-effort) ----------------------
+
+def _push_metrics_to_gateway(run_total: int, mismatches_total: int) -> None:
+    """
+    Push reconciliation run metrics to Prometheus Pushgateway using the text
+    exposition format. Uses plain httpx (already a dependency) — no prometheus_client
+    package needed.
+
+    Metric names match the alert rules in observability-stack/prometheus/rules.yml:
+      reconciliation_run_total       -- orders checked this run
+      reconciliation_mismatches_total -- orders with no matching ERP invoice
+    """
+    if not PUSHGATEWAY_URL:
+        log.debug("PUSHGATEWAY_URL not set -- skipping metric push.")
+        return
+
+    # Prometheus text format: one metric per line.
+    body = (
+        "# HELP reconciliation_run_total Number of CRM orders checked in the last reconciliation run.\n"
+        "# TYPE reconciliation_run_total gauge\n"
+        f"reconciliation_run_total {run_total}\n"
+        "# HELP reconciliation_mismatches_total CRM orders with no matching ERP invoice (last run).\n"
+        "# TYPE reconciliation_mismatches_total gauge\n"
+        f"reconciliation_mismatches_total {mismatches_total}\n"
+    )
+
+    gateway_url = f"{PUSHGATEWAY_URL}/metrics/job/reconciliation-job"
+    try:
+        import httpx
+        resp = httpx.put(gateway_url, content=body, headers={"Content-Type": "text/plain"}, timeout=10.0)
+        if resp.status_code in (200, 202):
+            log.info("Pushed metrics to Pushgateway: run_total=%d mismatches=%d", run_total, mismatches_total)
+        else:
+            log.warning("Pushgateway returned %d -- metrics may not be recorded.", resp.status_code)
+    except Exception as exc:
+        # Best-effort: push failure is a warning, not a fatal error.
+        log.warning("Failed to push metrics to Pushgateway: %s", exc)
+
 
 def _make_engine(url: str, label: str):
     """Create engine and probe connectivity; sys.exit on failure."""
@@ -135,51 +185,50 @@ def run() -> None:
     mismatches = _detect_mismatches(crm_ids, invoiced_ids)
     log.info("Mismatches (no ERP invoice): %d", len(mismatches))
 
-    if not mismatches:
-        log.info("No mismatches -- nothing to report.")
-        return
-
-    dedup = DedupStore(DEDUP_DB_PATH)
-    cooldown = timedelta(hours=DEDUP_COOLDOWN_HOURS)
-    now = datetime.now(tz=timezone.utc)
-
     reported = 0
     skipped = 0
 
-    for order_id in mismatches:
-        dedup_key = f"order:{order_id}"
-        last = dedup.get_last_reported(dedup_key)
-        if last is not None and (now - last) < cooldown:
-            log.info(
-                "order_id=%d: skipped (last reported %s, cooldown %dh not expired)",
-                order_id,
-                last.isoformat(),
-                DEDUP_COOLDOWN_HOURS,
-            )
-            skipped += 1
-            continue
+    if not mismatches:
+        log.info("No mismatches -- nothing to report.")
+    else:
+        dedup = DedupStore(DEDUP_DB_PATH)
+        cooldown = timedelta(hours=DEDUP_COOLDOWN_HOURS)
+        now = datetime.now(tz=timezone.utc)
 
-        log_text = _build_log_text(order_id)
-        log.info("order_id=%d: posting to LogPulse...", order_id)
+        for order_id in mismatches:
+            dedup_key = f"order:{order_id}"
+            last = dedup.get_last_reported(dedup_key)
+            if last is not None and (now - last) < cooldown:
+                log.info(
+                    "order_id=%d: skipped (last reported %s, cooldown %dh not expired)",
+                    order_id,
+                    last.isoformat(),
+                    DEDUP_COOLDOWN_HOURS,
+                )
+                skipped += 1
+                continue
 
-        result = post_to_logpulse(url=LOGPULSE_URL, log_text=log_text, timeout=90.0)
+            log_text = _build_log_text(order_id)
+            log.info("order_id=%d: posting to LogPulse...", order_id)
 
-        if result is not None:
-            dedup.mark_reported(dedup_key, now)
-            reported += 1
-            log.info(
-                "order_id=%d: reported. triage_id=%s category=%s confidence=%s",
-                order_id,
-                result.id,
-                result.category,
-                result.confidence,
-            )
-        else:
-            # Do NOT update dedup state -- let it retry on next run.
-            log.warning(
-                "order_id=%d: LogPulse call failed -- dedup NOT updated, will retry next run.",
-                order_id,
-            )
+            result = post_to_logpulse(url=LOGPULSE_URL, log_text=log_text, timeout=90.0)
+
+            if result is not None:
+                dedup.mark_reported(dedup_key, now)
+                reported += 1
+                log.info(
+                    "order_id=%d: reported. triage_id=%s category=%s confidence=%s",
+                    order_id,
+                    result.id,
+                    result.category,
+                    result.confidence,
+                )
+            else:
+                # Do NOT update dedup state -- let it retry on next run.
+                log.warning(
+                    "order_id=%d: LogPulse call failed -- dedup NOT updated, will retry next run.",
+                    order_id,
+                )
 
     log.info(
         "Run complete. reported=%d skipped=%d(cooldown) total_mismatches=%d",
@@ -188,6 +237,13 @@ def run() -> None:
         len(mismatches),
     )
 
+    # Push run metrics to Pushgateway (best-effort -- see _push_metrics_to_gateway).
+    _push_metrics_to_gateway(
+        run_total=len(crm_ids),
+        mismatches_total=len(mismatches),
+    )
+
 
 if __name__ == "__main__":
     run()
+
