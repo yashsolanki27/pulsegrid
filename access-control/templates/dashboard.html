@@ -18,12 +18,12 @@
       --accent-glow:     rgba(99, 102, 241, 0.12);
       --accent-light:    #a5b4fc;
       --text-primary:    #f1f5f9;
-      --text-secondary:  #94a3b8;
-      --text-muted:      #475569;
+      --text-secondary:  #94a3b8;  /* 5.71:1 on card, 4.98:1 on card-raised — passes 4.5:1 */
+      --text-muted:      #8b9ab0;  /* was #475569 (1.93:1 FAIL) — now 5.12:1 on card PASS */
       --ok:              #10b981;
       --warn:            #f59e0b;
       --danger:          #ef4444;
-      --sidebar-w:       240px;
+      --sidebar-w:       220px;
     }
 
     html, body { height: 100%; }
@@ -76,6 +76,7 @@
       flex-shrink: 0;
     }
 
+    /* brand-sub: was #475569 (2.34:1 FAIL) → #8b9ab0 (6.21:1 PASS) */
     .brand-sub {
       font-size: 0.7rem;
       color: var(--text-muted);
@@ -86,8 +87,10 @@
     .sidebar-nav {
       padding: 16px 12px;
       flex: 1;
+      overflow-y: auto;
     }
 
+    /* nav-section-label: was #475569 (2.34:1 FAIL) → #8b9ab0 (6.21:1 PASS) */
     .nav-section-label {
       font-size: 0.65rem;
       font-weight: 600;
@@ -96,7 +99,10 @@
       text-transform: uppercase;
       padding: 0 8px;
       margin-bottom: 6px;
+      margin-top: 16px;
     }
+
+    .nav-section-label:first-child { margin-top: 0; }
 
     .nav-link {
       display: flex;
@@ -106,7 +112,7 @@
       border-radius: 8px;
       font-size: 0.875rem;
       font-weight: 500;
-      color: var(--text-secondary);
+      color: var(--text-secondary);  /* 6.92:1 on sidebar — PASS */
       text-decoration: none;
       border-left: 3px solid transparent;
       transition: background 0.15s, color 0.15s;
@@ -125,8 +131,34 @@
 
     .nav-link.active {
       background: var(--accent-glow);
-      color: var(--accent-light);
+      color: var(--accent-light);  /* 7.34:1 on sidebar — PASS */
       border-left-color: var(--accent);
+    }
+
+    /* Disabled nav: colour #6b7f96 = 4.31:1 on sidebar, passes 3:1 UI threshold */
+    .nav-link.disabled {
+      color: #6b7f96;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .nav-link.disabled:hover {
+      background: transparent;
+      color: #6b7f96;
+    }
+
+    .nav-soon {
+      margin-left: auto;
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #6b7f96;
+      background: rgba(107, 127, 150, 0.12);
+      border: 1px solid rgba(107, 127, 150, 0.25);
+      border-radius: 4px;
+      padding: 1px 5px;
+      white-space: nowrap;
     }
 
     .nav-icon {
@@ -136,8 +168,10 @@
       opacity: 0.7;
     }
 
-    .nav-link.active .nav-icon { opacity: 1; }
+    .nav-link.active .nav-icon  { opacity: 1; }
+    .nav-link.disabled .nav-icon { opacity: 0.45; }
 
+    /* sidebar-footer: was #475569 (2.34:1 FAIL) → #8b9ab0 (6.21:1 PASS) */
     .sidebar-footer {
       padding: 16px 20px;
       border-top: 1px solid var(--border-subtle);
@@ -249,13 +283,14 @@
     .content {
       padding: 32px;
       flex: 1;
-      max-width: 1200px;
+      max-width: 1100px;  /* reduced from 1200px */
       width: 100%;
     }
 
+    /* Three equal columns on top row, full-width table on bottom */
     .dashboard-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 24px;
     }
 
@@ -285,6 +320,7 @@
       flex-shrink: 0;
     }
 
+    /* card-title: text-secondary #94a3b8 vs card #1e293b = 5.71:1 — PASS */
     .card-title {
       font-size: 0.875rem;
       font-weight: 600;
@@ -323,12 +359,14 @@
     .stat-number.warn     { color: var(--warn); }
     .stat-number.danger   { color: var(--danger); }
 
+    /* stat-label: #94a3b8 vs card-raised #253347 = 4.98:1 — PASS */
     .stat-label {
       font-size: 0.75rem;
       color: var(--text-secondary);
     }
 
     /* ── Sync note + info icon ─────────────────────────── */
+    /* sync-note: was #475569 (1.93:1 FAIL) → #8b9ab0 (5.12:1 PASS) */
     .sync-note {
       font-size: 0.75rem;
       color: var(--text-muted);
@@ -388,7 +426,6 @@
     .health-item.degraded    { border-left-color: var(--warn); }
     .health-item.unreachable { border-left-color: var(--danger); }
 
-    /* Dot with animated pulse ring for ok status */
     .dot-wrap {
       position: relative;
       width: 12px;
@@ -430,10 +467,12 @@
       color: var(--text-primary);
     }
 
+    /* health-code: was #475569 (1.69:1 on card-raised — FAIL)
+       → text-secondary #94a3b8 (4.98:1 on card-raised — PASS) */
     .health-code {
       margin-left: auto;
       font-size: 0.75rem;
-      color: var(--text-muted);
+      color: var(--text-secondary);
       font-variant-numeric: tabular-nums;
     }
 
@@ -459,6 +498,57 @@
       color: var(--accent-light);
     }
 
+    /* ── Mismatch Ratio Mini-Chart ─────────────────────── */
+    .ratio-chart-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .ratio-bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ratio-bar-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    /* ratio-bar-name: #94a3b8 vs card #1e293b = 5.71:1 — PASS */
+    .ratio-bar-name {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    /* ratio-bar-pct: #8b9ab0 vs card #1e293b = 5.12:1 — PASS */
+    .ratio-bar-pct {
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+    }
+
+    .ratio-bar-track {
+      height: 8px;
+      background: var(--bg-card-raised);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .ratio-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    .ratio-bar-fill.ok      { background: var(--ok); }
+    .ratio-bar-fill.warn    { background: var(--warn); }
+    .ratio-bar-fill.neutral { background: var(--accent); }
+
     /* ── LogPulse table ────────────────────────────────── */
     .table-scroll {
       max-height: 340px;
@@ -480,6 +570,7 @@
       font-size: 0.85rem;
     }
 
+    /* thead th: was #475569 (1.93:1 FAIL) → #8b9ab0 (5.12:1 PASS) */
     thead th {
       position: sticky;
       top: 0;
@@ -505,21 +596,24 @@
     tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.015); }
     tbody tr:nth-child(even):hover { background: var(--bg-card-raised); }
 
+    /* td: #94a3b8 vs card #1e293b = 5.71:1 — PASS (unchanged) */
     td {
       padding: 10px 14px;
       color: var(--text-secondary);
       vertical-align: top;
     }
 
+    /* ID col: was #475569 (1.93:1 FAIL) → #8b9ab0 (5.12:1 PASS) */
     td:first-child { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
     .root-cause {
-      color: var(--text-primary);
+      color: var(--text-primary);  /* 13.35:1 — PASS */
       min-width: 280px;
       white-space: normal;
       word-break: break-word;
     }
 
+    /* ── Badges — alpha raised for visual presence on dark card ── */
     .badge {
       display: inline-flex;
       align-items: center;
@@ -531,22 +625,28 @@
       white-space: nowrap;
     }
 
+    /* classified: #6ee7b7 vs effective bg = 6.82:1 — PASS
+       alpha 0.12 → 0.20 for visual presence */
     .badge-classified {
-      background: rgba(16, 185, 129, 0.12);
+      background: rgba(16, 185, 129, 0.20);
       color: #6ee7b7;
-      border: 1px solid rgba(16, 185, 129, 0.25);
+      border: 1px solid rgba(16, 185, 129, 0.40);
     }
 
+    /* unclassified: #fca5a5 vs effective bg = 6.49:1 — PASS
+       alpha 0.10 → 0.18 for visual presence */
     .badge-unclassified {
-      background: rgba(239, 68, 68, 0.1);
+      background: rgba(239, 68, 68, 0.18);
       color: #fca5a5;
-      border: 1px solid rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.35);
     }
 
+    /* confidence & ts: was #475569 (1.93:1 FAIL) → #8b9ab0 (5.12:1 PASS) */
     .confidence { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .ts         { white-space: nowrap; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
     /* ── Footer ────────────────────────────────────────── */
+    /* was #475569 (2.50:1 FAIL) → #8b9ab0 (6.62:1 PASS) */
     footer {
       padding: 20px 32px;
       font-size: 0.72rem;
@@ -555,13 +655,17 @@
       margin-top: auto;
     }
 
-    /* ── Responsive — sidebar hides on narrow screens ──── */
-    @media (max-width: 900px) {
-      .sidebar      { display: none; }
-      .main-wrap    { margin-left: 0; }
+    /* ── Responsive ────────────────────────────────────── */
+    @media (max-width: 1000px) {
+      .sidebar        { display: none; }
+      .main-wrap      { margin-left: 0; }
+      .dashboard-grid { grid-template-columns: 1fr 1fr; }
+      .card-full      { grid-column: 1 / -1; }
+      .content        { padding: 20px 16px; }
+    }
+
+    @media (max-width: 640px) {
       .dashboard-grid { grid-template-columns: 1fr; }
-      .card-full    { grid-column: 1; }
-      .content      { padding: 20px 16px; }
     }
   </style>
 </head>
@@ -589,6 +693,39 @@
       </svg>
       Dashboard
     </a>
+
+    <div class="nav-section-label">Reporting</div>
+    <span class="nav-link disabled" aria-disabled="true" title="Coming soon">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+           stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M9 17v-6m4 6v-4m4 4V7M4 20h16"/>
+      </svg>
+      Reports
+      <span class="nav-soon" aria-label="Coming soon">soon</span>
+    </span>
+
+    <span class="nav-link disabled" aria-disabled="true" title="Coming soon">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+           stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      Audit Log
+      <span class="nav-soon" aria-label="Coming soon">soon</span>
+    </span>
+
+    <div class="nav-section-label">System</div>
+    <span class="nav-link disabled" aria-disabled="true" title="Coming soon">
+      <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+           stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Settings
+      <span class="nav-soon" aria-label="Coming soon">soon</span>
+    </span>
   </div>
 
   <div class="sidebar-footer">
@@ -690,6 +827,62 @@
           <p class="sync-note" style="margin-top:16px;">
             Live service status · Updated on page load
           </p>
+        </div>
+      </div>
+
+      <!-- ── Sync Match Ratio ─────────────────────────── -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-accent-bar" aria-hidden="true"></div>
+          <h2 class="card-title">Sync Match Ratio</h2>
+        </div>
+        <div class="card-body">
+          {% if mismatch_error %}
+            <div class="alert alert-warn" role="alert">
+              <span aria-hidden="true">⚠</span>
+              <span>Data unavailable</span>
+            </div>
+          {% else %}
+            {% set match_pct = ((matched_orders / total_orders * 100) | round(1)) if total_orders > 0 else 0 %}
+            {% set miss_pct  = ((mismatch_count  / total_orders * 100) | round(1)) if total_orders > 0 else 0 %}
+            <div class="ratio-chart-wrap" aria-label="Sync match ratio breakdown">
+              <div class="ratio-bar-row">
+                <div class="ratio-bar-label">
+                  <span class="ratio-bar-name">Matched orders</span>
+                  <span class="ratio-bar-pct">{{ match_pct }}%</span>
+                </div>
+                <div class="ratio-bar-track" role="presentation">
+                  <div class="ratio-bar-fill ok" style="width: {{ match_pct }}%;"></div>
+                </div>
+              </div>
+              <div class="ratio-bar-row">
+                <div class="ratio-bar-label">
+                  <span class="ratio-bar-name">Mismatched orders</span>
+                  <span class="ratio-bar-pct">{{ miss_pct }}%</span>
+                </div>
+                <div class="ratio-bar-track" role="presentation">
+                  <div class="ratio-bar-fill warn" style="width: {{ miss_pct }}%;"></div>
+                </div>
+              </div>
+              <div class="ratio-bar-row">
+                <div class="ratio-bar-label">
+                  <span class="ratio-bar-name">Total CRM orders</span>
+                  <span class="ratio-bar-pct">{{ total_orders }}</span>
+                </div>
+                <div class="ratio-bar-track" role="presentation">
+                  <div class="ratio-bar-fill neutral" style="width: 100%;"></div>
+                </div>
+              </div>
+            </div>
+            <p class="sync-note" style="margin-top:14px;">
+              ~10% mismatch rate is intentional by design
+              <i class="info-icon"
+                 tabindex="0"
+                 role="img"
+                 aria-label="The CRM–ERP sync intentionally fails ~10% of the time to simulate real-world integration failures."
+                 title="The CRM–ERP sync intentionally fails ~10% of the time to simulate real-world integration failures.">i</i>
+            </p>
+          {% endif %}
         </div>
       </div>
 
