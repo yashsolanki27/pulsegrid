@@ -19,7 +19,7 @@
 - [x] CRUD endpoints: tickets
 - [x] Duplicate-customer detection (same email, different id)
 - [x] Basic tests (Postman/Newman)
-- [ ] Seed script (synthetic data)
+- [x] Seed script (synthetic data)
 
 ## Phase 2: ERP service — checklist
 
