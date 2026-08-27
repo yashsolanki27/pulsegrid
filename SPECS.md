@@ -8,7 +8,7 @@
 - [x] Phase 4: Reconciliation job → LogPulse (MVP demo milestone)
 - [x] Phase 5: API health monitor → LogPulse
 - [x] Phase 6: Observability stack → LogPulse
-- [ ] Phase 7: Access control (Azure AD)
+- [x] Phase 7: Access control (Azure AD)
 
 ## Phase 1: CRM service — checklist
 
@@ -74,3 +74,21 @@
 - [x] observability-stack/webhook-receiver/pyproject.toml: fastapi, uvicorn, httpx, pulsegrid-common path dep (../../pulsegrid_common)
 - [x] docs/tech-debt-tracker.md: created (Phase 6 tradeoffs logged)
 - [x] docs/learnings.md: created (Phase 6 findings logged)
+
+## Phase 7: Access control — checklist
+
+- [x] access-control/: FastAPI service scaffold (pyproject.toml, Dockerfile, .gitignore)
+- [x] Azure AD OAuth2 Auth Code flow via MSAL ConfidentialClientApplication: /auth/login, /auth/callback, /auth/logout
+- [x] CSRF protection: state parameter generated with secrets.token_urlsafe(16), stored in pre-auth session cookie, validated on callback
+- [x] Session: itsdangerous URLSafeSerializer signed cookie (8 h TTL, cookie name pulsegrid_session); no Redis/DB session store
+- [x] Login gate: unauthenticated requests to / redirected to /auth/login; auth check via get_session()+is_authenticated() inline in handler (not Depends — see learnings.md)
+- [x] MSAL synchronous calls wrapped in asyncio.to_thread() to avoid blocking FastAPI event loop
+- [x] Dashboard (auth-gated): reconciliation mismatch count (direct CRM+ERP DB read), LogPulse /history (graceful fallback on unavailable), CRM+ERP /health pings
+- [x] Jinja2 HTML templates: login.html (Microsoft sign-in button, error banner), dashboard.html (3 sections: mismatches, health, LogPulse history)
+- [x] .env.example: Phase 7 vars added (AAD_CLIENT_ID, AAD_CLIENT_SECRET, AAD_TENANT_ID, AAD_REDIRECT_URI, SESSION_SECRET_KEY, ACCESS_CONTROL_PORT)
+- [x] Docker: Dockerfile (build context = repo root; copies pulsegrid_common); commented-out service entry in observability-stack/docker-compose.yml
+- [x] /health endpoint (no auth): returns {"status": "ok"}; /metrics intentionally absent (UI service)
+- [x] docs/patterns.md: Phase 7 section added (session mechanism, port 8002, MSAL pattern, auth-gated route pattern, dashboard content defaults, Azure AD handoff)
+- [x] docs/tech-debt-tracker.md: Phase 7 section added (signed cookie tradeoff, MSAL sync, LogPulse /history availability, Azure AD external handoff)
+- [x] docs/learnings.md: Phase 7 section added (MSAL sync, state CSRF, redirect_uri mismatch, signed vs encrypted cookies, id_token claims, FastAPI RedirectResponse from Depends limitation)
+
