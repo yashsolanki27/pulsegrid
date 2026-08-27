@@ -58,9 +58,9 @@ async def dashboard(request: Request):
     health_data = await _get_service_health()
 
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
+        request=request,
+        name="dashboard.html",
+        context={
             "user_name": session.get("name", "User"),
             "user_email": session.get("email", ""),
             **mismatch_data,
