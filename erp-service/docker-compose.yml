@@ -11,5 +11,18 @@ services:
       - "5433:5432"
     restart: unless-stopped
 
+  erp-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pulsegrid-erp-service
+    environment:
+      ERP_DATABASE_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5433/erp
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   erp_db_data:

@@ -11,5 +11,18 @@ services:
       - "5432:5432"
     restart: unless-stopped
 
+  crm-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pulsegrid-crm-service
+    environment:
+      CRM_DATABASE_URL: postgresql+psycopg://postgres:postgres@host.docker.internal:5432/crm
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   crm_db_data:
