@@ -268,3 +268,70 @@ httpx.put(f"{PUSHGATEWAY_URL}/metrics/job/reconciliation-job", content=body,
 - Prometheus scrapes Pushgateway with `honor_labels: true` so the `job` label from the
   push body is preserved.
 - Metric names must match the alert rule expressions in `prometheus/rules.yml`.
+
+## Access-control service (Phase 7)
+
+### Port
+
+- access-control: **8002** (host)
+
+### Session mechanism
+
+- **Storage**: `itsdangerous` `URLSafeSerializer` — signed cookie, server-side stateless.
+  No Redis or DB session store needed.
+- **Cookie name**: `pulsegrid_session`
+- **TTL**: 8 hours (`SESSION_TTL_SECONDS = 8 * 3600`) — agent-chosen default, not a business rule.
+  Override by changing the constant in `config.py`.
+- **Payload**: `{"authenticated": bool, "name": str, "email": str, "expires_at": float}`.
+  Signed, NOT encrypted — payload is visible to the client (base64). Acceptable because the
+  payload contains only display name and email (not sensitive). If sensitive fields are ever
+  added, switch to `itsdangerous.Fernet` or encrypt separately. See tech-debt-tracker.md.
+- **CSRF protection**: pre-redirect `state` token stored in the session cookie; validated on
+  callback before token exchange.
+
+### MSAL ConfidentialClientApplication pattern
+
+- Use `ConfidentialClientApplication` (not `PublicClientApplication`).
+- Instantiate per request — MSAL is synchronous and not async-safe.
+- Wrap all MSAL calls in `asyncio.to_thread(...)` when calling from FastAPI async routes.
+- Scopes for identity-only login: `["openid", "profile", "email"]`.
+- No Graph API calls needed for a login gate.
+
+### Auth-gated route pattern
+
+Routes that require authentication call `get_session(request)` then `is_authenticated(session)`,
+and return `RedirectResponse(url="/auth/login", status_code=302)` if not authenticated.
+FastAPI's `Depends()` mechanism cannot propagate a `RedirectResponse` return — use direct
+inline checks in async route handlers (see `dashboard.py`).
+
+### Dashboard content (agent-chosen defaults)
+
+Three data sources, all fault-tolerant (each section degrades to an error notice independently):
+
+1. **Reconciliation mismatches**: direct SQL read from CRM and ERP DBs. Counts:
+   total CRM orders, orders matched to an ERP invoice, unmatched (mismatch).
+   Same logic as reconciliation-job. No HTTP call — direct `sqlalchemy` sessions.
+2. **LogPulse recent triage history**: `GET {LOGPULSE_URL}/history` with 5 s timeout.
+   Returns up to 10 most recent items. Graceful fallback if endpoint unavailable.
+3. **Service health**: `GET {CRM_SERVICE_URL}/health` and `GET {ERP_SERVICE_URL}/health`
+   with 5 s timeout each. Shows green/yellow/red per service.
+
+### No /metrics endpoint
+
+access-control is a browser-facing UI service, not a data pipeline service.
+There is no Prometheus scrape target for it. Do not add `prometheus-fastapi-instrumentator`.
+This is an intentional exception to the standard FastAPI service pattern (Phase 6).
+
+### Azure AD app registration (external/manual step)
+
+The service consumes Azure AD credentials from env vars only. The actual app registration
+(creating the app in Azure Portal, setting redirect URIs, generating client secret) is a
+**manual step performed by the operator**. The agent does not automate Azure Portal interactions.
+Steps required before running access-control:
+1. Create an App Registration in Azure AD (Azure Portal → Azure Active Directory → App registrations).
+2. Add Redirect URI: `http://localhost:8002/auth/callback` (or the production URI).
+3. Create a client secret (Certificates & Secrets tab).
+4. Copy Client ID, Tenant ID, Client Secret into `.env` (see `.env.example`).
+5. Generate `SESSION_SECRET_KEY`: `python -c "import secrets; print(secrets.token_hex(32))"`.
+6. Uncomment the `access-control` service in `observability-stack/docker-compose.yml`.
+

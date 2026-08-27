@@ -112,3 +112,47 @@ Not bugs — known decisions with documented rationale.
   the lifespan hook added to main.py in the same session. The /metrics scrape target
   configured in prometheus.yml now returns real metrics.
 - No remaining tech debt here.
+
+---
+
+## Phase 7: Access control
+
+### itsdangerous signed cookie (stateless session)
+- **Decision:** `URLSafeSerializer` signed cookie — no Redis, no DB session table.
+- **Rationale:** Stateless session is sufficient for a single-tenant login gate where
+  the payload (name, email, authenticated, expires_at) is not sensitive. No infrastructure
+  dependency beyond the service itself.
+- **Tradeoff:** Revocation is impossible before TTL expiry. If a user's account is
+  compromised, there is no server-side mechanism to invalidate existing sessions — they
+  expire after 8 hours. Acceptable for v1/demo. For production, add a server-side session
+  store (Redis or Postgres) with a session ID + revocation table.
+- **Signed, not encrypted:** The cookie payload is base64-encoded JSON and visible to
+  the browser (not secret). Integrity is guaranteed by the HMAC signature. If the payload
+  ever includes sensitive data, switch to Fernet (symmetric encryption + integrity).
+
+### MSAL synchronous API in FastAPI async context
+- **Decision:** Wrap all `ConfidentialClientApplication` calls in `asyncio.to_thread(...)`.
+- **Rationale:** MSAL's Python library is synchronous. Calling it directly in an `async def`
+  route would block the FastAPI event loop during the token exchange network call.
+- **Tradeoff:** Thread pool usage for each login/callback. For a low-traffic login gate,
+  this is negligible. If MSAL adds an async API in a future version, migrate to it.
+- **Alternative rejected:** `msal-extensions` — adds unnecessary complexity for a login gate.
+
+### LogPulse /history endpoint: availability unknown at build time
+- **Decision:** Dashboard calls `GET LOGPULSE_URL/history` with a 5 s timeout and
+  gracefully falls back to an error notice if unavailable.
+- **Rationale:** The `/history` endpoint is not explicitly documented in learnings.md
+  (Phase 4 only confirmed `/triage`). The dashboard is built to degrade gracefully rather
+  than block on endpoint availability.
+- **Future fix:** Confirm `/history` endpoint availability and response shape via live test.
+  If available: verify pagination, authentication requirements, and response schema.
+  If unavailable: replace with a direct query to LogPulse's `/triage` history (if any).
+
+### Azure AD app registration: external/manual handoff
+- **Decision:** The service consumes Azure AD credentials from env vars; no automated
+  Azure Portal registration is performed.
+- **Rationale:** Azure Portal app registration requires tenant admin access and a real
+  Azure subscription. This is an operator responsibility, not an agent task.
+- **Handoff note:** See `patterns.md § Azure AD app registration` and `.env.example` for
+  the exact credentials required and generation instructions for `SESSION_SECRET_KEY`.
+

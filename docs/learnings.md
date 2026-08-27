@@ -103,3 +103,66 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   payload would require a separate LogPulse convention that doesn't exist.
 - If resolution tracking is needed in the future, add a `POST /triage/resolve` endpoint
   to LogPulse (out of scope for v1).
+
+---
+
+## Phase 7: Access control (Azure AD + MSAL)
+
+### MSAL ConfidentialClientApplication is synchronous
+- `msal.ConfidentialClientApplication` and all its methods (`get_authorization_request_url`,
+  `acquire_token_by_authorization_code`) are blocking/synchronous.
+- Calling them directly inside FastAPI `async def` handlers would block the event loop.
+- **Fix:** wrap with `asyncio.to_thread(fn, *args)` — runs the synchronous call in a thread
+  pool without blocking the event loop. Example:
+  ```python
+  result = await asyncio.to_thread(app.acquire_token_by_authorization_code, code=code, ...)
+  ```
+- This is safe for a low-traffic login gate. If throughput ever matters, evaluate async MSAL
+  alternatives or a dedicated auth proxy (e.g., oauth2-proxy).
+
+### State parameter is mandatory for CSRF prevention
+- The OAuth2 Authorization Code flow requires a `state` parameter to prevent CSRF attacks.
+- Generate with `secrets.token_urlsafe(16)` before redirecting to Azure AD.
+- Store the state in the session cookie (pre-auth session) before the redirect.
+- On callback: compare `request.query_params["state"]` to `session["state"]`.
+  Reject the callback with a redirect to `/auth/login?error=state_mismatch` if they differ.
+- Azure AD echoes back the exact `state` value you sent — do not modify it.
+
+### redirect_uri must exactly match Azure AD app registration
+- The `redirect_uri` passed to `acquire_token_by_authorization_code` must be **identical**
+  (byte-for-byte) to the URI registered in the Azure AD app (Azure Portal → Authentication tab).
+- Common mismatches that cause `AADSTS50011` errors:
+  - `http` vs `https`
+  - port present vs absent (e.g. `:8002` missing)
+  - trailing slash present vs absent
+  - hostname case differences
+- Set `AAD_REDIRECT_URI` in `.env` and use the same value in both the Azure Portal registration
+  and the MSAL call. Do not hardcode.
+
+### itsdangerous: signed vs encrypted cookies
+- `URLSafeSerializer` signs the payload (HMAC-SHA1) but does NOT encrypt it.
+  The cookie value is `base64(json_payload).signature` — readable in browser DevTools.
+- For PulseGrid's login gate, the payload (name, email, authenticated flag) is not sensitive,
+  so signing-only is sufficient.
+- If sensitive data (tokens, PII) is ever stored in the session, use `itsdangerous.Fernet`
+  (AES-128 CBC + HMAC-SHA256) which provides both confidentiality and integrity.
+
+### Azure AD id_token claims (Auth Code flow, no Graph API)
+- After `acquire_token_by_authorization_code`, the `id_token_claims` dict contains:
+  - `"name"` → display name (e.g. "Jane Doe")
+  - `"preferred_username"` → UPN / work email (e.g. "jane@company.com") — use as email
+  - `"oid"` → Azure AD object ID (stable unique user identifier across name/email changes)
+  - `"tid"` → tenant ID (useful for validating single-tenant enforcement)
+- No need to call Microsoft Graph `/me` for basic identity — `id_token_claims` is sufficient.
+- **Nonce**: not required for Auth Code flow (only for implicit/hybrid flows). MSAL does not
+  add a nonce by default in `get_authorization_request_url` for Auth Code flow.
+
+### FastAPI: cannot return RedirectResponse from a Depends() dependency
+- FastAPI `Depends()` cannot redirect the browser — returning a `RedirectResponse` from a
+  dependency is silently ignored; FastAPI serializes it as JSON instead.
+- **Correct pattern for auth-gating:** call `get_session(request)` + `is_authenticated(session)`
+  directly in the route handler and `return RedirectResponse(...)` from the handler itself.
+- Alternative: use Starlette middleware (`BaseHTTPMiddleware`) to intercept all requests before
+  routing. More powerful but adds complexity. Not used in Phase 7 (simple route-level check
+  is sufficient for a single gated route).
+
