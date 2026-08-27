@@ -200,3 +200,25 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
 - These errors only occur in Docker (where path deps are rebuilt from scratch).
   Local `uv sync` may work without them due to editable installs behaving differently.
 
+### ERR_TOO_MANY_REDIRECTS after successful login — missing path="/" on set_cookie
+- **Symptom:** After Azure AD callback, the browser enters an infinite loop:
+  `/auth/callback` → sets cookie → redirects to `/` → `/` sees no cookie → redirects to
+  `/auth/login` → MSAL → callback → repeat. ERR_TOO_MANY_REDIRECTS.
+- **Root cause:** `response.set_cookie(...)` without an explicit `path=` argument.
+  Starlette's default is to scope the cookie to the **path of the current request**
+  (`/auth/callback`). A cookie scoped to `/auth/callback` is only sent by the browser
+  on subsequent requests to paths under `/auth/callback` — it is never included on `GET /`.
+- **Fix:** Always pass `path="/"` to `set_cookie` (and matching `path="/"` to
+  `delete_cookie`) so the cookie is visible to all routes.
+  ```python
+  response.set_cookie(key=..., value=..., path="/", ...)
+  response.delete_cookie(key=..., path="/")
+  ```
+- **Starlette behaviour note:** Unlike browsers (which default to the root path `/`),
+  Starlette's `Response.set_cookie` does NOT default to `/` — it passes whatever you
+  give it directly to the `Set-Cookie` header, and if you omit `path`, no `Path`
+  attribute is emitted. Browsers then scope the cookie to the directory of the current
+  URL (per RFC 6265 §5.1.4 default path algorithm: strip everything after the last `/`
+  in the path), which for `/auth/callback` gives `/auth`.
+- This bug is silent — no error is logged, the cookie appears to be set (it's in the
+  `Set-Cookie` response header), but the browser simply does not send it back on `GET /`.

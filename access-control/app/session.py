@@ -64,12 +64,15 @@ def set_session(response: Response, data: dict[str, Any]) -> None:
         httponly=True,
         samesite="lax",
         max_age=SESSION_TTL_SECONDS,
+        path="/",  # MUST be "/" — without this, Starlette scopes the cookie to the
+                   # current request path (/auth/callback), so it is never sent on
+                   # requests to / and causes an infinite redirect loop.
     )
 
 
 def clear_session(response: Response) -> None:
     """Delete the session cookie (logout)."""
-    response.delete_cookie(key=SESSION_COOKIE_NAME)
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
 
 
 # ── Auth check ────────────────────────────────────────────────────────────────
