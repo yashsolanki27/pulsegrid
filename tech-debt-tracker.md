@@ -33,10 +33,12 @@ Schedule interval: */15 * * * * (every 15 minutes). Agent-chosen default — not
 specified in any doc or user input. Tunable via cron expression in
 .github/workflows/api-health-monitor.yml. Review before production use.
 
-tech-debt [Phase 5 — api-health-monitor: ephemeral dedup in CI]:
-GitHub Actions runners are stateless — the SQLite dedup sidecar does not persist
-between workflow runs. Cooldown window (24h default) has no cross-run effect: every
-run starts with an empty dedup store. This means every 15-minute run that finds a
-failure will call LogPulse once (not a burst within the run, but one call per run per
-failing endpoint). Acceptable for demo scale. Future fix: persist dedup file via
-GitHub Actions cache (actions/cache) or a remote KV store accessible from the runner.
+resolved [Phase 5 — api-health-monitor: dedup persistence via actions/cache]:
+The SQLite dedup sidecar (health_dedup_state.db) is now persisted across GitHub
+Actions runs using actions/cache with the FIXED key "api-health-monitor-dedup-v1".
+Key is stable (not per-run-id, not per-commit) so the same cache entry is reused
+every run. Cache is restored before Newman runs and saved after report_failures.py
+completes (save step uses if: always() so a failed run still persists dedup updates).
+The 24h cooldown window now spans across workflow executions as originally intended —
+a broken endpoint is reported once, then suppressed until the cooldown expires.
+Dedup key scheme unchanged: endpoint:{method}:{url_without_query}.

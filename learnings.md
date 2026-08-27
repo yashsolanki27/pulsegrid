@@ -79,13 +79,13 @@ multi-instance. See tech-debt-tracker.md for the full note.
    time may lag by a few minutes under load. For SLA-sensitive monitoring, a
    dedicated uptime service (e.g. UptimeRobot, Better Uptime) is more reliable.
 
-4. **Ephemeral runner = ephemeral dedup.**
-   Each GitHub Actions job runs on a fresh runner — any local files (SQLite dedup
-   store, Newman JSON report) are lost at the end of the job. The dedup cooldown
-   has no cross-run effect unless the file is explicitly persisted. For Phase 5 MVP
-   this is acceptable (one LogPulse call per failure per run, no intra-run burst).
-   Future fix: `actions/cache` to persist the dedup sidecar, keyed on a stable
-   cache key (e.g. repo+workflow name).
+4. **Dedup state persisted via actions/cache.**
+   Each GitHub Actions job runs on a fresh runner — local files vanish at job end.
+   The SQLite dedup sidecar (`health_dedup_state.db`) is explicitly persisted using
+   `actions/cache` with fixed key `api-health-monitor-dedup-v1`. Cache is restored
+   before Newman and saved after `report_failures.py` (with `if: always()` so
+   failed runs still update state). The `DEDUP_DB_PATH` env var must match the
+   cached file path. See patterns.md §"Dedup persistence in CI" for full details.
 
 5. **Newman `--env-var` overrides collection variables.**
    Collection variables (`{{crm_base_url}}`) are overridden at runtime with

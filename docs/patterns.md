@@ -192,14 +192,23 @@ without any code change. Considerations for tuning:
 - If cooldown (`DEDUP_COOLDOWN_HOURS`) is shorter than the cron interval, the dedup has
   no effect — keep cooldown >= cron interval (24h default vs 15min cron: fine).
 
-## Ephemeral dedup in CI (GitHub Actions)
+## Dedup persistence in CI (GitHub Actions)
 
-GitHub Actions runners are fresh per run — the SQLite dedup sidecar file does NOT
-persist between workflow executions. This means the dedup cooldown has no effect across
-runs in CI: every 15-minute run starts with an empty dedup store and will report
-every failure it finds.
+The SQLite dedup sidecar (`health_dedup_state.db`) is persisted across GitHub Actions
+runs using `actions/cache` with the **fixed** key `api-health-monitor-dedup-v1`.
 
-**For Phase 5 MVP this is acceptable** (each failure gets at most one LogPulse call per
-run, not a burst). Future improvement: persist the dedup file via GitHub Actions cache
-or a persistent external store. See tech-debt-tracker.md.
+Key design decisions:
+- Key is stable across runs (not per-run-id, not per-commit) — same entry is reused
+  every execution so cooldown state accumulates correctly.
+- `actions/cache/restore` runs **before** Newman so the store is populated at report time.
+- `actions/cache/save` runs **after** `report_failures.py` with `if: always()` — a
+  failed run still persists any dedup updates made before the failure.
+- `DEDUP_DB_PATH=health_dedup_state.db` is explicitly set in the workflow env so the
+  file path matches the cache path.
+- GitHub cache automatically overwrites an entry with the same key on save — no
+  accumulating stale entries.
 
+The 24h cooldown window therefore spans across workflow executions as intended: a
+broken endpoint is reported once, then suppressed for 24h regardless of how many
+15-minute runs fire in that window. Dedup key scheme unchanged:
+`endpoint:{method}:{url_without_query}`.

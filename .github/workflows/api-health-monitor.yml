@@ -15,6 +15,15 @@
 # Optional env vars (can also be set as secrets):
 #   DEDUP_COOLDOWN_HOURS — default 24; override if running more frequently
 #
+# Dedup persistence:
+#   The SQLite dedup sidecar (health_dedup_state.db) is persisted across runs
+#   using actions/cache with a FIXED key ("api-health-monitor-dedup-v1").
+#   The key is stable (not per-run-id, not per-commit) so the same cache entry
+#   is reused on every run. Cache is restored before Newman and saved after
+#   report_failures.py (even on failure — save step uses if: always()).
+#   This ensures the 24h cooldown window spans across workflow executions,
+#   preventing repeated LogPulse calls for the same broken endpoint.
+#
 # Newman exit codes:
 #   0  — all tests passed  → report_failures.py runs but finds nothing → no LogPulse call
 #   1  — test/assertion failure → report_failures.py finds failures → LogPulse called
@@ -42,17 +51,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Set up Node.js for Newman ─────────────────────────────────────────
+      # ── 2. Restore dedup state cache ─────────────────────────────────────────
+      # Fixed key — not per-run-id, not per-commit. Same key every run so the
+      # same cache entry is reused and the 24h cooldown spans across executions.
+      - name: Restore dedup state
+        uses: actions/cache@v4
+        with:
+          path: health_dedup_state.db
+          key: api-health-monitor-dedup-v1
+
+      # ── 3. Set up Node.js for Newman ─────────────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      # ── 3. Install Newman ─────────────────────────────────────────────────────
+      # ── 4. Install Newman ─────────────────────────────────────────────────────
       - name: Install Newman
         run: npm install -g newman
 
-      # ── 4. Run Newman ─────────────────────────────────────────────────────────
+      # ── 5. Run Newman ─────────────────────────────────────────────────────────
       # continue-on-error: true — Newman exits 1 on assertion failures; we still
       # want the report step to run so failures reach LogPulse.
       - name: Run Newman health checks
@@ -70,36 +88,46 @@ jobs:
             --timeout-request 15000 \
             --timeout 60000
 
-      # ── 5. Set up Python for report_failures.py ───────────────────────────────
+      # ── 6. Set up Python for report_failures.py ───────────────────────────────
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # ── 6. Install uv ─────────────────────────────────────────────────────────
+      # ── 7. Install uv ─────────────────────────────────────────────────────────
       - name: Install uv
         run: pip install uv
 
-      # ── 7. Install api-health-monitor dependencies ────────────────────────────
+      # ── 8. Install api-health-monitor dependencies ────────────────────────────
       - name: Install api-health-monitor dependencies
         run: uv pip install --system -e api-health-monitor
 
-      # ── 8. Report failures to LogPulse ────────────────────────────────────────
-      # Runs regardless of Newman outcome (step 4 has continue-on-error: true).
+      # ── 9. Report failures to LogPulse ────────────────────────────────────────
+      # Runs regardless of Newman outcome (step 5 has continue-on-error: true).
       # If Newman passed, the report finds no failures and exits cleanly.
-      # Dedup state is ephemeral per run (GitHub Actions runner is fresh each time).
-      # This means dedup is STATELESS across runs — the cooldown cannot span
-      # multiple workflow executions without persisting the SQLite file.
-      # See tech-debt-tracker.md for the tradeoff note on ephemeral dedup state.
+      # Dedup state persists across runs via actions/cache (step 2 / step 10).
       - name: Report failures to LogPulse
         env:
           NEWMAN_REPORT_PATH: newman-report.json
           LOGPULSE_URL: ${{ secrets.LOGPULSE_URL || 'https://log-pulse.up.railway.app/triage' }}
           DEDUP_COOLDOWN_HOURS: ${{ vars.DEDUP_COOLDOWN_HOURS || '24' }}
+          DEDUP_DB_PATH: health_dedup_state.db
         run: |
           python api-health-monitor/report_failures.py
 
-      # ── 9. Upload Newman report as artifact ───────────────────────────────────
+      # ── 10. Save dedup state cache ───────────────────────────────────────────
+      # if: always() — runs even when earlier steps fail so a failed run still
+      # persists any dedup updates made before the failure.
+      # actions/cache with a fixed key saves the updated SQLite file for the
+      # next run. GitHub cache automatically replaces an entry with the same key.
+      - name: Save dedup state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: health_dedup_state.db
+          key: api-health-monitor-dedup-v1
+
+      # ── 11. Upload Newman report as artifact ──────────────────────────────────
       - name: Upload Newman report
         if: always()
         uses: actions/upload-artifact@v4
