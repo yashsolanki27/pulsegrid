@@ -161,6 +161,31 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # ---------------------------------------------------------------------------
+  # Access Control — Azure AD OAuth2 gated dashboard (Phase 7)
+  # IMPORTANT: Uncomment ONLY after completing Azure AD app registration.
+  # Required env vars: AAD_CLIENT_ID, AAD_CLIENT_SECRET, AAD_TENANT_ID,
+  #                    AAD_REDIRECT_URI, SESSION_SECRET_KEY
+  # See .env.example for the full variable list and generation instructions.
+  # Built from the monorepo root context so pulsegrid_common path dep resolves.
+  # ---------------------------------------------------------------------------
+  # access-control:
+  #   build:
+  #     context: ..
+  #     dockerfile: access-control/Dockerfile
+  #   container_name: pulsegrid-access-control
+  #   env_file:
+  #     - ../.env
+  #   environment:
+  #     CRM_DATABASE_URL: ${CRM_DATABASE_URL:-postgresql+psycopg://postgres:postgres@host.docker.internal:5432/crm}
+  #     ERP_DATABASE_URL: ${ERP_DATABASE_URL:-postgresql+psycopg://postgres:postgres@host.docker.internal:5433/erp}
+  #     CRM_SERVICE_URL: ${CRM_SERVICE_URL:-http://host.docker.internal:8000}
+  #     ERP_SERVICE_URL: ${ERP_SERVICE_URL:-http://host.docker.internal:8001}
+  #     LOGPULSE_URL: ${LOGPULSE_URL:-https://log-pulse.up.railway.app}
+  #   ports:
+  #     - "8002:8002"
+  #   restart: unless-stopped
+
 volumes:
   prometheus_data:
   alertmanager_data:
