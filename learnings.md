@@ -115,3 +115,62 @@ This avoids import path hacks (sys.path manipulation) and keeps dependency
 management clean. Each consumer installs the shared package with `uv pip install -e .`
 (editable mode) so local edits to pulsegrid_common are reflected immediately.
 
+---
+
+## Starlette 1.x — `TemplateResponse` positional-arg breaking change (Phase 7, August 2026)
+
+**Source:** Post-AAD-secret-rotation 500 on first successful dashboard render.
+
+### What broke
+
+`TemplateResponse` used the old (Starlette < 0.36) two-positional-arg form:
+
+```python
+# OLD — broken on Starlette ≥ 0.36 / 1.x
+return templates.TemplateResponse("dashboard.html", {"request": request, ...})
+```
+
+Starlette 1.x changed the signature: the context dict is no longer accepted
+as a second positional arg. Starlette silently received the dict as the
+template **name** arg, forwarded it to Jinja2's template loader, which then
+tried to hash it as a cache key and crashed:
+
+```
+TypeError: unhashable type: 'dict'
+```
+
+### Fix
+
+Use keyword arguments as required by the new API:
+
+```python
+# NEW — correct for Starlette ≥ 0.36 / 1.x
+return templates.TemplateResponse(
+    request=request,
+    name="dashboard.html",
+    context={...},          # no "request" key — it's a top-level kwarg now
+)
+```
+
+### Why it was hidden until the secret rotation
+
+The prior bug (redirect loop) meant `auth/callback` never completed — the
+dashboard route was never reached. Once the new `AAD_CLIENT_SECRET` fixed
+auth, the callback succeeded for the first time and the broken render path
+was hit immediately.
+
+**Lesson:** A "fixed" auth issue can unmask downstream bugs that were
+previously unreachable. Always re-test the full happy-path after fixing any
+auth blocker, not just the auth flow itself.
+
+### Check for this pattern
+
+When upgrading Starlette (or pulling in FastAPI which bumps it transitively),
+grep for `TemplateResponse` calls with a positional dict argument:
+
+```
+grep -rn "TemplateResponse(" --include="*.py"
+```
+
+Any call where the second positional arg is `{` (a dict literal) is broken
+on Starlette 1.x.
