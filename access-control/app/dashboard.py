@@ -13,6 +13,7 @@ Auth: require_auth dependency — any unauthenticated request is redirected to /
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -116,6 +117,29 @@ def _get_mismatch_counts() -> dict[str, Any]:
         }
 
 
+def _fmt_logpulse_item(item: dict) -> dict:
+    """
+    Return a copy of a LogPulse history dict with `created_at` reformatted
+    from raw ISO-8601 (e.g. "2026-08-27T09:17:14.575964+00:00") to a clean,
+    human-readable string (e.g. "Aug 27, 2026, 9:17 AM UTC").
+
+    Falls back to the original string if the field is absent or unparseable —
+    keeps the defensive contract for LogPulse's unversioned schema.
+    """
+    raw = item.get("created_at")
+    formatted = raw  # default: leave unchanged
+    if raw:
+        try:
+            dt = datetime.fromisoformat(raw)
+            # Normalise to UTC so the label is unambiguous
+            dt = dt.astimezone(timezone.utc)
+            # %-d / %-I: Linux strftime no-zero-pad (fine — container is Debian Bookworm)
+            formatted = dt.strftime("%b %-d, %Y, %-I:%M %p UTC")
+        except (ValueError, TypeError):
+            pass  # fall back to raw string
+    return {**item, "created_at": formatted}
+
+
 async def _get_logpulse_history() -> dict[str, Any]:
     """
     Fetch recent triage results from LogPulse /history.
@@ -131,7 +155,9 @@ async def _get_logpulse_history() -> dict[str, Any]:
             items = resp.json()
             if isinstance(items, list):
                 return {
-                    "logpulse_history": items[:_LOGPULSE_HISTORY_LIMIT],
+                    "logpulse_history": [
+                        _fmt_logpulse_item(item) for item in items[:_LOGPULSE_HISTORY_LIMIT]
+                    ],
                     "logpulse_error": None,
                 }
             # Unexpected shape
