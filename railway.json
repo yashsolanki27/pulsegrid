@@ -5,7 +5,7 @@
     "dockerfilePath": "access-control/Dockerfile"
   },
   "deploy": {
-    "startCommand": "uv run --no-dev uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8002}",
+    "startCommand": "sh -c 'uv run --no-dev uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8002}'",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
