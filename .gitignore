@@ -34,3 +34,6 @@ uv.lock
 # OS
 .DS_Store
 Thumbs.db
+
+# Antigravity CLI tooling (local, not project code)
+skills/

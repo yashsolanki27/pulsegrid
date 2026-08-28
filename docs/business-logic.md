@@ -26,9 +26,8 @@ CRM orders and ERP invoices to have meaningful data to catch and report.
 Making sync 100 % reliable would leave the reconciliation-job nothing to do,
 which defeats the demo milestone. The ~10 % gap is the feature, not the fault.
 - Reconciliation-job (Phase 4) detects sync failures by directly comparing CRM and ERP data (e.g. an order with no matching invoice) — no failure-flag or status field exists for this by design.
-- Severity mapping (low/high/critical) for LogPulse reports: [UNRESOLVED — see blocked.md]
-- LogPulse API contract (endpoint, payload, auth header): [UNRESOLVED — verify against
-  live /docs before Phase 4/5, see blocked.md]
+- Severity mapping (low/high/critical) for LogPulse reports: N/A — LogPulse `/triage` accepts only `log_text` (no severity field). PulseGrid internal severity labels are not sent. Resolved Phase 4; see blocked.md + learnings.md.
+- LogPulse API contract: RESOLVED Phase 4. Endpoint: `POST https://log-pulse.up.railway.app/triage`, no auth, `{log_text}` only. Confirmed via live Swagger test. See learnings.md §Phase 4.
 - No pricing/billing/multi-tenant logic — explicitly out of scope, not missing.
 - Dedup rule: same email + different id = duplicate. No fuzzy matching in v1.
 - Dup-detection N/A for ERP entities (invoices, inventory, accounts): no same-entity-different-id case exists; accounts are already 1:1 constrained to crm_customer_id via soft reference (one account per CRM customer by convention).

@@ -233,7 +233,21 @@ broken endpoint is reported once, then suppressed for 24h regardless of how many
 ## Prometheus /metrics exposure pattern (all FastAPI services)
 
 All FastAPI services (crm-service, erp-service, webhook-receiver) expose `/metrics`
-using `prometheus-fastapi-instrumentator` via the lifespan hook:
+using `prometheus-fastapi-instrumentator`.
+
+**crm-service and erp-service** use module-level initialisation (no lifespan required):
+
+```python
+from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
+
+app = FastAPI(title="<service-name>")
+# instrument() adds middleware; expose() adds the /metrics route.
+# Both are safe at module level — called once before the app starts serving.
+Instrumentator().instrument(app).expose(app)
+```
+
+**webhook-receiver** wraps in a lifespan hook (it has other lifespan setup):
 
 ```python
 from contextlib import asynccontextmanager
@@ -247,6 +261,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="<service-name>", lifespan=lifespan)
 ```
+
+Both approaches are functionally equivalent — `prometheus-fastapi-instrumentator`
+supports either. Use whichever fits the service's existing structure.
 
 Add `prometheus-fastapi-instrumentator>=6.1` to `pyproject.toml` dependencies.
 Prometheus scrapes `/metrics` (default path). No auth on the endpoint.

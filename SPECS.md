@@ -2,9 +2,9 @@
 
 ## Phase order (dependency-driven, do not reorder)
 
-- [ ] Phase 1: CRM service
+- [x] Phase 1: CRM service
 - [x] Phase 2: ERP service
-- [ ] Phase 3: CRM↔ERP integration (~10% intentional failure rate)
+- [x] Phase 3: CRM↔ERP integration (~10% intentional failure rate)
 - [x] Phase 4: Reconciliation job → LogPulse (MVP demo milestone)
 - [x] Phase 5: API health monitor → LogPulse
 - [x] Phase 6: Observability stack → LogPulse
@@ -86,7 +86,7 @@
 - [x] Dashboard (auth-gated): reconciliation mismatch count (direct CRM+ERP DB read), LogPulse /history (graceful fallback on unavailable), CRM+ERP /health pings
 - [x] Jinja2 HTML templates: login.html (Microsoft sign-in button, error banner), dashboard.html (3 sections: mismatches, health, LogPulse history)
 - [x] .env.example: Phase 7 vars added (AAD_CLIENT_ID, AAD_CLIENT_SECRET, AAD_TENANT_ID, AAD_REDIRECT_URI, SESSION_SECRET_KEY, ACCESS_CONTROL_PORT)
-- [x] Docker: Dockerfile (build context = repo root; copies pulsegrid_common); commented-out service entry in observability-stack/docker-compose.yml
+- [x] Docker: Dockerfile (build context = repo root; copies pulsegrid_common); service entry in access-control/docker-compose.yml (own compose file per patterns.md convention; build context = repo root so pulsegrid_common path dep resolves)
 - [x] /health endpoint (no auth): returns {"status": "ok"}; /metrics intentionally absent (UI service)
 - [x] docs/patterns.md: Phase 7 section added (session mechanism, port 8002, MSAL pattern, auth-gated route pattern, dashboard content defaults, Azure AD handoff)
 - [x] docs/tech-debt-tracker.md: Phase 7 section added (signed cookie tradeoff, MSAL sync, LogPulse /history availability, Azure AD external handoff)
