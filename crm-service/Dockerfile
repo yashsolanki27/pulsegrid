@@ -1,18 +1,12 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-# Layout: /workspace/
-#   pulsegrid_common/   ← shared lib (not a dep of crm-service, but kept for
-#                         structural consistency with access-control pattern)
-#   crm-service/        ← this service (WORKDIR)
-#
-# Build context = repo root (same as access-control).
-# crm-service/pyproject.toml has no pulsegrid-common path dependency,
-# so no sed patch is required.
+# Build context = crm-service/ (Railway Root Directory set to crm-service in dashboard).
+# crm-service has no pulsegrid_common path dependency, so repo-root context is not needed.
 WORKDIR /workspace/crm-service
 
-# Copy crm-service project files
-COPY crm-service/pyproject.toml crm-service/uv.lock ./
-COPY crm-service/app ./app
+# Copy project files (paths relative to crm-service/ context)
+COPY pyproject.toml uv.lock ./
+COPY app ./app
 
 # Install production dependencies
 RUN uv sync --frozen --no-dev
