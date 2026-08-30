@@ -796,9 +796,9 @@
         </div>
         <div class="card-body">
           {% if mismatch_error %}
-            <div class="alert alert-warn" role="alert">
-              <span aria-hidden="true">⚠</span>
-              <span>DB query failed: {{ mismatch_error }}</span>
+            <div class="alert alert-info" role="status">
+              <span aria-hidden="true">ℹ</span>
+              <span>This section is local-only and not available in the hosted deployment.</span>
             </div>
           {% else %}
             <div class="stat-row">
@@ -834,6 +834,12 @@
           <h2 class="card-title">Service Health</h2>
         </div>
         <div class="card-body">
+          {% if mismatch_error %}
+            <div class="alert alert-info" role="status">
+              <span aria-hidden="true">ℹ</span>
+              <span>This section is local-only and not available in the hosted deployment.</span>
+            </div>
+          {% else %}
           <div class="health-list">
             <div class="health-item {{ crm_health.status }}" role="status"
                  aria-label="crm-service: {{ crm_health.status }}, HTTP {{ crm_health.code }}">
@@ -855,6 +861,7 @@
           <p class="sync-note" style="margin-top:16px;">
             Live service status · Updated on page load
           </p>
+          {% endif %}
         </div>
       </div>
 
@@ -866,9 +873,9 @@
         </div>
         <div class="card-body">
           {% if mismatch_error %}
-            <div class="alert alert-warn" role="alert">
-              <span aria-hidden="true">⚠</span>
-              <span>Data unavailable</span>
+            <div class="alert alert-info" role="status">
+              <span aria-hidden="true">ℹ</span>
+              <span>This section is local-only and not available in the hosted deployment.</span>
             </div>
           {% else %}
             {% set match_pct = ((matched_orders / total_orders * 100) | round(1)) if total_orders > 0 else 0 %}
