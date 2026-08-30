@@ -8,8 +8,9 @@
 # and from Prometheus built-in up{job, instance}.
 #
 # reconciliation-job pushes:
-#   reconciliation_mismatches_total — count of detected CRM/ERP mismatches per run
-#   reconciliation_run_total        — count of total orders checked per run
+#   reconciliation_mismatches_total   — count of detected CRM/ERP mismatches per run
+#   reconciliation_run_total          — count of total orders checked per run
+#   reconciliation_last_run_timestamp — Unix epoch seconds of the last run (for silence detection)
 
 groups:
   - name: pulsegrid.service_availability
@@ -91,18 +92,23 @@ groups:
       # -----------------------------------------------------------------------
       # Reconciliation job has not pushed metrics for > 2 hours
       # Indicates the scheduled job may not be running.
+      #
+      # Uses reconciliation_last_run_timestamp (Unix epoch seconds pushed by run.py)
+      # so that time() - gauge correctly measures seconds since last run.
+      # The absent() branch fires if Pushgateway has no data at all (job never ran
+      # or gateway was restarted and lost state).
       # -----------------------------------------------------------------------
       - alert: ReconciliationJobSilent
         expr: >
-          absent(reconciliation_run_total)
+          absent(reconciliation_last_run_timestamp)
           or
-          (time() - reconciliation_run_total) > 7200
+          (time() - reconciliation_last_run_timestamp) > 7200
         for: 0m
         labels:
           severity: warning
         annotations:
           summary: "Reconciliation job has not run in over 2 hours"
           description: >
-            No reconciliation_run_total metric from the Pushgateway in the last 2 hours.
+            No reconciliation_last_run_timestamp metric from the Pushgateway in the last 2 hours.
             Integration failure detected — the reconciliation job may be failing silently
             or not scheduled. Check the job process and Pushgateway connectivity.

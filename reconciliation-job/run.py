@@ -23,9 +23,10 @@ Imports: logpulse_client and DedupStore are imported from pulsegrid_common (shar
   string key as defined by pulsegrid_common.dedup.DedupStore).
 
 Pushgateway metrics (Phase 6, optional):
-  If PUSHGATEWAY_URL is set, the job pushes two Prometheus gauges after each run:
-    reconciliation_run_total       -- number of CRM orders checked
-    reconciliation_mismatches_total -- number of orders with no matching ERP invoice
+  If PUSHGATEWAY_URL is set, the job pushes three Prometheus gauges after each run:
+    reconciliation_run_total           -- number of CRM orders checked
+    reconciliation_mismatches_total    -- number of orders with no matching ERP invoice
+    reconciliation_last_run_timestamp  -- Unix epoch seconds of this run (for silence detection)
   Push is best-effort: failure logs a warning but does not abort the job.
   This allows Prometheus to alert on mismatch rate and job silence
   (see observability-stack/prometheus/rules.yml).
@@ -80,15 +81,16 @@ PUSHGATEWAY_URL = os.getenv("PUSHGATEWAY_URL", "")
 
 # ---- Pushgateway metrics push (Phase 6 -- best-effort) ----------------------
 
-def _push_metrics_to_gateway(run_total: int, mismatches_total: int) -> None:
+def _push_metrics_to_gateway(run_total: int, mismatches_total: int, last_run_ts: float) -> None:
     """
     Push reconciliation run metrics to Prometheus Pushgateway using the text
     exposition format. Uses plain httpx (already a dependency) — no prometheus_client
     package needed.
 
     Metric names match the alert rules in observability-stack/prometheus/rules.yml:
-      reconciliation_run_total       -- orders checked this run
-      reconciliation_mismatches_total -- orders with no matching ERP invoice
+      reconciliation_run_total           -- orders checked this run
+      reconciliation_mismatches_total    -- orders with no matching ERP invoice
+      reconciliation_last_run_timestamp  -- Unix epoch seconds of this run (for silence detection)
     """
     if not PUSHGATEWAY_URL:
         log.debug("PUSHGATEWAY_URL not set -- skipping metric push.")
@@ -102,6 +104,9 @@ def _push_metrics_to_gateway(run_total: int, mismatches_total: int) -> None:
         "# HELP reconciliation_mismatches_total CRM orders with no matching ERP invoice (last run).\n"
         "# TYPE reconciliation_mismatches_total gauge\n"
         f"reconciliation_mismatches_total {mismatches_total}\n"
+        "# HELP reconciliation_last_run_timestamp Unix epoch seconds of the last reconciliation run.\n"
+        "# TYPE reconciliation_last_run_timestamp gauge\n"
+        f"reconciliation_last_run_timestamp {last_run_ts}\n"
     )
 
     gateway_url = f"{PUSHGATEWAY_URL}/metrics/job/reconciliation-job"
@@ -109,12 +114,13 @@ def _push_metrics_to_gateway(run_total: int, mismatches_total: int) -> None:
         import httpx
         resp = httpx.put(gateway_url, content=body, headers={"Content-Type": "text/plain"}, timeout=10.0)
         if resp.status_code in (200, 202):
-            log.info("Pushed metrics to Pushgateway: run_total=%d mismatches=%d", run_total, mismatches_total)
+            log.info("Pushed metrics to Pushgateway: run_total=%d mismatches=%d ts=%f", run_total, mismatches_total, last_run_ts)
         else:
             log.warning("Pushgateway returned %d -- metrics may not be recorded.", resp.status_code)
     except Exception as exc:
         # Best-effort: push failure is a warning, not a fatal error.
         log.warning("Failed to push metrics to Pushgateway: %s", exc)
+
 
 
 def _make_engine(url: str, label: str):
@@ -187,13 +193,13 @@ def run() -> None:
 
     reported = 0
     skipped = 0
+    now = datetime.now(tz=timezone.utc)
 
     if not mismatches:
         log.info("No mismatches -- nothing to report.")
     else:
         dedup = DedupStore(DEDUP_DB_PATH)
         cooldown = timedelta(hours=DEDUP_COOLDOWN_HOURS)
-        now = datetime.now(tz=timezone.utc)
 
         for order_id in mismatches:
             dedup_key = f"order:{order_id}"
@@ -238,9 +244,12 @@ def run() -> None:
     )
 
     # Push run metrics to Pushgateway (best-effort -- see _push_metrics_to_gateway).
+    # now.timestamp() gives Unix epoch seconds (float) — used by the
+    # ReconciliationJobSilent alert: (time() - reconciliation_last_run_timestamp) > 7200.
     _push_metrics_to_gateway(
         run_total=len(crm_ids),
         mismatches_total=len(mismatches),
+        last_run_ts=now.timestamp(),
     )
 
 

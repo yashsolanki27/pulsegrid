@@ -94,18 +94,14 @@ Not bugs — known decisions with documented rationale.
   for hours. The dedup in webhook-receiver (24h cooldown) provides a second layer.
 - **Not a business rule.** Tunable in `alertmanager/alertmanager.yml`.
 
-### ReconciliationJobSilent alert expression (time() - gauge)
-- **Decision:** Alert uses `(time() - reconciliation_run_total) > 7200` to detect stale
-  metric push. This works only if reconciliation_run_total is a gauge tracking the epoch
-  of the last push — it does NOT (it tracks order count). This expression is semantically
-  incorrect for the count-gauge approach used.
-- **Actual correct behaviour:** The `absent(reconciliation_run_total)` branch fires if
-  Pushgateway has no metric at all (job never ran or gateway restarted). The `time() -`
-  branch will fire spuriously when run_total is a small integer (< 7200 orders).
-- **Mitigation:** A `reconciliation_last_run_timestamp` gauge (epoch seconds) would fix
-  this properly. Logged as future-work. For v1/demo, `absent()` alone is sufficient to
-  detect job silence after gateway restart.
-- **Future fix:** Add a `reconciliation_last_run_timestamp` gauge push in run.py.
+### ~~ReconciliationJobSilent alert expression~~ — RESOLVED 2026-08-31
+- **Was:** Alert used `time() - reconciliation_run_total > 7200` — semantically wrong
+  (reconciliation_run_total is a count gauge, not a timestamp).
+- **Fix:** Added `reconciliation_last_run_timestamp` gauge (Unix epoch seconds) pushed by
+  `reconciliation-job/run.py` alongside the existing metrics. Alert expression updated to
+  `time() - reconciliation_last_run_timestamp > 7200` in `prometheus/rules.yml`.
+  `absent()` branch updated to check the new gauge. Both files committed in
+  `fix(observability): correct ReconciliationJobSilent alert to use timestamp gauge`.
 
 ### webhook-receiver /metrics endpoint (resolved in Phase 6 session)
 - prometheus-fastapi-instrumentator was added to webhook-receiver pyproject.toml and
