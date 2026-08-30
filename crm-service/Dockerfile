@@ -1,12 +1,12 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-# Build context = crm-service/ (Railway Root Directory set to crm-service in dashboard).
-# crm-service has no pulsegrid_common path dependency, so repo-root context is not needed.
+# Build context = repo root (Railway uses dockerfilePath = "crm-service/Dockerfile",
+# so the build context is the repository root, not this subdirectory).
 WORKDIR /workspace/crm-service
 
-# Copy project files (paths relative to crm-service/ context)
-COPY pyproject.toml uv.lock ./
-COPY app ./app
+# Copy project files (paths relative to repo root)
+COPY crm-service/pyproject.toml crm-service/uv.lock ./
+COPY crm-service/app ./app
 
 # Install production dependencies
 RUN uv sync --frozen --no-dev
