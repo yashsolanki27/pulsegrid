@@ -18,3 +18,9 @@ Modular monolith of independent services — not a single monolith, not full mic
 - `integration-sync` (inside `crm-service`) calls `erp-service` on order creation.
 - `reconciliation-job` reads both databases (CRM and ERP) directly.
 - `pulsegrid_common` is imported by `reconciliation-job`, `api-health-monitor`'s report script, and the webhook receiver.
+
+## Hosted Railway URLs (confirmed 2026-08-31)
+
+- `crm-service`    → https://crm-service-production-6f6c.up.railway.app
+- `erp-service`    → https://erp-service-production-d446.up.railway.app
+- `access-control` → https://pulsegrid-dashboard.up.railway.app

@@ -27,15 +27,15 @@ Option A was chosen and implemented:
   - access-control lifespan updated: warns if CRM/ERP DB URLs still point to localhost.
   - dashboard.html: no change needed — already renders live data when mismatch_error is None.
 
-## Owner action still required (cannot be done by agent)
+## Owner action — COMPLETED 2026-08-31
 
-Set these env vars on the access-control Railway service (Railway dashboard → service →
-Variables):
-  CRM_DATABASE_URL  = postgresql+psycopg://postgres:<pass>@turntable.proxy.rlwy.net:17746/crm
-  ERP_DATABASE_URL  = postgresql+psycopg://postgres:<pass>@turntable.proxy.rlwy.net:17746/erp
-  CRM_SERVICE_URL   = https://crm-service-production-6f6c.up.railway.app
-  ERP_SERVICE_URL   = https://erp-service-production-d446.up.railway.app
+Env vars set on the access-control Railway service by owner:
+  CRM_DATABASE_URL  — set ✅
+  ERP_DATABASE_URL  — set ✅
+  CRM_SERVICE_URL   = https://crm-service-production-6f6c.up.railway.app ✅
+  ERP_SERVICE_URL   = https://erp-service-production-d446.up.railway.app ✅
 
-Once set, all three dashboard sections (Reconciliation Mismatches, Service Health,
-Sync Match Ratio) will be live in the hosted deployment.
+All three dashboard sections (Reconciliation Mismatches, Service Health, LogPulse History)
+confirmed live at https://pulsegrid-dashboard.up.railway.app as of 2026-08-31.
+No open owner actions remain.
 
