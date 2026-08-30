@@ -61,15 +61,16 @@ async def lifespan(app: FastAPI):
             "In Azure Portal → App registrations → Certificates & secrets, copy the "
             "'Value' column (shown once at creation), NOT the 'Secret ID' column."
         )
+
+    # CRM/ERP DB URLs are local-only data sources (Option B — no Railway deploy).
+    # Their absence is expected in the hosted deployment; the dashboard degrades gracefully.
     if not CRM_DATABASE_URL:
-        problems.append(
-            "CRM_DATABASE_URL is not set "
-            "(format: postgresql+psycopg://user:pass@host:port/dbname)"
+        logger.warning(
+            "Local-only data source unavailable in hosted deployment: CRM_DATABASE_URL"
         )
     if not ERP_DATABASE_URL:
-        problems.append(
-            "ERP_DATABASE_URL is not set "
-            "(format: postgresql+psycopg://user:pass@host:port/dbname)"
+        logger.warning(
+            "Local-only data source unavailable in hosted deployment: ERP_DATABASE_URL"
         )
 
     if problems:
@@ -79,7 +80,10 @@ async def lifespan(app: FastAPI):
             "access-control will start but auth/DB will fail until the above are fixed."
         )
     else:
-        logger.info("access-control config OK — AAD, session, and DB credentials present.")
+        logger.info(
+            "access-control config OK — AAD and session credentials present. "
+            "CRM/ERP DB sections are local-only and will show notices in the hosted deployment."
+        )
 
     yield
 
