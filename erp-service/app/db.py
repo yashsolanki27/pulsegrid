@@ -3,9 +3,21 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = os.environ.get(
-    "ERP_DATABASE_URL",
-    "postgresql+psycopg://postgres:postgres@localhost:5433/erp",
+# Railway injects DATABASE_URL as the standard Postgres variable.
+# ERP_DATABASE_URL takes precedence when set explicitly.
+_raw_url = (
+    os.environ.get("ERP_DATABASE_URL")
+    or os.environ.get("DATABASE_URL")
+    or "postgresql+psycopg://postgres:postgres@localhost:5433/erp"
+)
+
+# Normalize bare postgresql:// and postgres:// (Railway default format, which
+# makes SQLAlchemy select the psycopg2 dialect) to postgresql+psycopg:// so
+# the installed psycopg3 driver is always used.
+DATABASE_URL = (
+    _raw_url
+    .replace("postgresql://", "postgresql+psycopg://", 1)
+    .replace("postgres://", "postgresql+psycopg://", 1)
 )
 
 engine = create_engine(DATABASE_URL)
