@@ -1,12 +1,12 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-# Build context = repo root (Railway uses dockerfilePath = "erp-service/Dockerfile",
-# so the build context is the repository root, not this subdirectory).
+# Build context = erp-service/ (Railway Root Directory set to erp-service in dashboard).
+# erp-service has no pulsegrid_common path dependency, so repo-root context is not needed.
 WORKDIR /workspace/erp-service
 
-# Copy project files (paths relative to repo root)
-COPY erp-service/pyproject.toml erp-service/uv.lock ./
-COPY erp-service/app ./app
+# Copy project files (paths relative to erp-service/ context)
+COPY pyproject.toml uv.lock ./
+COPY app ./app
 
 # Install production dependencies
 RUN uv sync --frozen --no-dev
