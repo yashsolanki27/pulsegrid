@@ -147,15 +147,13 @@ Not bugs — known decisions with documented rationale.
   this is negligible. If MSAL adds an async API in a future version, migrate to it.
 - **Alternative rejected:** `msal-extensions` — adds unnecessary complexity for a login gate.
 
-### LogPulse /history endpoint: availability unknown at build time
-- **Decision:** Dashboard calls `GET LOGPULSE_URL/history` with a 5 s timeout and
-  gracefully falls back to an error notice if unavailable.
-- **Rationale:** The `/history` endpoint is not explicitly documented in learnings.md
-  (Phase 4 only confirmed `/triage`). The dashboard is built to degrade gracefully rather
-  than block on endpoint availability.
-- **Future fix:** Confirm `/history` endpoint availability and response shape via live test.
-  If available: verify pagination, authentication requirements, and response schema.
-  If unavailable: replace with a direct query to LogPulse's `/triage` history (if any).
+### ~~LogPulse /history endpoint: availability unknown at build time~~ — RESOLVED 2026-08-31
+- **Was:** Dashboard calls `GET LOGPULSE_URL/history` with a 5 s timeout and gracefully
+  falls back. Endpoint availability and schema were not formally confirmed at build time.
+- **Confirmed 2026-08-31:** HTTP 200, JSON array, fields: `id`, `created_at`, `raw_text`,
+  `extracted_error_line`, `category`, `root_cause_summary`, `confidence`, `suggested_action`,
+  `unclassified_reason` (nullable), `sop_command` (nullable). No auth required.
+  Full schema documented in `docs/learnings.md § LogPulse /history endpoint`.
 
 ### Azure AD app registration: external/manual handoff
 - **Decision:** The service consumes Azure AD credentials from env vars; no automated

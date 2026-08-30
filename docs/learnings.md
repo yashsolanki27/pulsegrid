@@ -292,3 +292,31 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   create a new client secret (or use an existing one if the Value was noted) → copy the
   **Value** column → paste into `AAD_CLIENT_SECRET` in `.env`.
   If the original Value was never saved: delete the old secret and create a new one.
+
+### LogPulse /history endpoint — confirmed response shape (2026-08-31)
+- **Endpoint:** `GET https://log-pulse.up.railway.app/history`
+- **Auth:** None required.
+- **HTTP status:** 200 on success.
+- **Response:** JSON array of triage records, most recent first. Each record:
+  ```json
+  {
+    "id": 10,
+    "created_at": "2026-08-27T09:17:12.000000+00:00",
+    "raw_text": "<original log_text submitted to /triage>",
+    "extracted_error_line": "<string>",
+    "category": "<taxonomy category or 'unclassified'>",
+    "root_cause_summary": "<string>",
+    "confidence": 85,
+    "suggested_action": "<string>",
+    "unclassified_reason": "<string or null>",
+    "sop_command": "<string or null>"
+  }
+  ```
+- **Fields used by dashboard:** `id`, `created_at`, `raw_text`, `category`, `confidence`,
+  `suggested_action`. `unclassified_reason` and `sop_command` are nullable.
+- **Pagination:** Not observed — all available records returned in a single response.
+  10 records confirmed present as of 2026-08-31.
+- **Dashboard fallback:** The access-control dashboard calls `/history` with a 5 s timeout
+  and degrades gracefully if the endpoint is unavailable. The endpoint is stable — the
+  fallback is a safety net, not a expected failure path.
+- **Confirmed via:** live curl during PulseGrid audit 2026-08-31.
