@@ -16,6 +16,13 @@ Deliberate demo fixtures per business-logic.md dedup rule
 - Customers 4 & 5 share email "sarah.connell@example.com" (different ids).
 - Customer 1 has an order WITH a linked ticket.
 - Ticket 3 has NO order (order_id NULL).
+
+Phase 8 demo-gap orders (indices 8-11):
+- 4 extra CRM orders with NO matching ERP invoice, creating deterministic
+  reconciliation mismatches for the guest/demo mode screens.
+- These are distinct from the intentional ~10% random sync failure rate —
+  they are fixed seed data, not probabilistic.
+- ERP seed.py deliberately skips crm_order_ids for these orders (indices 8-11).
 """
 
 import argparse
@@ -50,6 +57,15 @@ ORDERS = [
     (6, "2025-05-30T16:50:00+00:00"),
     (7, "2025-07-02T08:15:00+00:00"),
     (9, "2025-08-05T13:40:00+00:00"),
+    # ── Demo-gap orders (Phase 8) ──────────────────────────────────────────
+    # These four orders intentionally have NO matching ERP invoice.
+    # They create deterministic reconciliation mismatches for the guest demo
+    # without touching the intentional ~10% random sync failure rate.
+    # ERP seed skips crm_order_ids for orders at indices 8-11.
+    (4, "2025-09-10T11:00:00+00:00"),   # demo gap #1
+    (6, "2025-09-18T14:30:00+00:00"),   # demo gap #2
+    (8, "2025-10-02T09:00:00+00:00"),   # demo gap #3
+    (0, "2025-10-15T16:45:00+00:00"),   # demo gap #4
 ]
 
 # (customer_idx, order_idx_or_None, subject, created_at)

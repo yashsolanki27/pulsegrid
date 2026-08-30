@@ -67,3 +67,13 @@ ERP_SERVICE_URL: str = os.getenv("ERP_SERVICE_URL", "http://localhost:8001")
 
 # Timeout for health-ping HTTP calls (seconds)
 HEALTH_PING_TIMEOUT: float = 5.0
+
+
+# ── Guest / demo mode ─────────────────────────────────────────────────────────
+
+# Set DEMO_MODE_ENABLED=true to enable the /demo-login endpoint that issues a
+# read-only guest session without requiring Azure AD credentials.
+# Leave unset or set to "false" (default) to return HTTP 404 on /demo-login.
+# MUST be false in any deployment where real users' data is present.
+# See docs/patterns.md § Guest/demo mode (Phase 8).
+DEMO_MODE_ENABLED: bool = os.getenv("DEMO_MODE_ENABLED", "false").lower() == "true"

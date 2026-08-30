@@ -15,10 +15,10 @@ Fixtures chosen to exercise domain rules from business-logic.md:
 
 Accounts (5):
   crm_customer_ids 1-5 mirror the first five CRM seed customers
-  (soft ref — no FK enforced; IDs 1-5 are stable once CRM is seeded).
+  (soft ref — no FK enforced; IDs 1-5 are stable once CRM is seeded).\
   Plausible placeholder ints are safe: the ERP schema carries no DB-level FK.
 
-Invoices (6 — one per account crm_order_id, covering all 4 statuses):
+Invoices (8 — covers all 4 statuses, includes Phase 8 additions):
   Status is never set directly; instead each invoice is inserted as draft
   (the only valid initial status per the create path) and then advanced
   through valid transitions using _assert_valid_transition — the same guard
@@ -29,6 +29,13 @@ Invoices (6 — one per account crm_order_id, covering all 4 statuses):
     draft→sent→overdue : terminal overdue state       (crm_order_id 4)
     draft→sent→paid    : second paid example          (crm_order_id 5)
     draft-only   : second draft example               (crm_order_id 6)
+    draft→sent   : Phase 8 addition                   (crm_order_id 7)
+    draft→sent→paid    : Phase 8 addition             (crm_order_id 8)
+
+  Phase 8 demo-gap: CRM orders at seed indices 8-11 (order IDs > 8) have NO
+  matching invoice by design — they appear as reconciliation mismatches in the
+  guest demo screens. This is intentional and documented; do not add invoices
+  for those CRM order IDs.
 
 Inventory (8 items, all quantities > 0):
   No quantity=0 rows — seed data represents actively stocked items.
@@ -75,6 +82,13 @@ INVOICE_TRANSITIONS = [
     (4, [InvoiceStatus.sent, InvoiceStatus.overdue],  "2025-03-15T14:10:00+00:00"),  # overdue
     (5, [InvoiceStatus.sent, InvoiceStatus.paid],     "2025-04-20T11:25:00+00:00"),  # paid
     (6, [],                                           "2025-05-30T16:50:00+00:00"),  # draft
+    # Phase 8 — 2 additional matched invoices for CRM orders 7 and 8 (indices 6 and 7)
+    # This makes the "matched" set more realistic before the demo-gap rows.
+    (7, [InvoiceStatus.sent],                         "2025-07-05T10:00:00+00:00"),  # sent
+    (8, [InvoiceStatus.sent, InvoiceStatus.paid],     "2025-08-08T12:00:00+00:00"),  # paid
+    # NOTE: CRM orders at seed indices 8-11 (created in Phase 8 demo-gap block)
+    # intentionally have NO matching invoice here. Those order IDs will appear as
+    # mismatches in the reconciliation view — that is by design for the guest demo.
 ]
 
 # ---------------------------------------------------------------------------

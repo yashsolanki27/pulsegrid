@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 
 from app.auth import router as auth_router
 from app.dashboard import router as dashboard_router
+from app.guest import router as guest_router
 
 
 logger = logging.getLogger(__name__)
@@ -92,6 +93,16 @@ async def lifespan(app: FastAPI):
             "access-control config OK — AAD and session credentials present."
         )
 
+    # Guest/demo mode status — always log so it's visible in Railway logs
+    from app.config import DEMO_MODE_ENABLED
+    if DEMO_MODE_ENABLED:
+        logger.warning(
+            "DEMO_MODE_ENABLED=true — /demo-login is active. "
+            "Ensure only synthetic seed data is in the databases."
+        )
+    else:
+        logger.info("DEMO_MODE_ENABLED=false — /demo-login returns 404 (safe default).")
+
     yield
 
 
@@ -106,6 +117,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)
+app.include_router(guest_router)
 
 
 @app.get("/health", include_in_schema=False)

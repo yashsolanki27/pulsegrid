@@ -92,3 +92,60 @@
 - [x] docs/tech-debt-tracker.md: Phase 7 section added (signed cookie tradeoff, MSAL sync, LogPulse /history availability, Azure AD external handoff)
 - [x] docs/learnings.md: Phase 7 section added (MSAL sync, state CSRF, redirect_uri mismatch, signed vs encrypted cookies, id_token claims, FastAPI RedirectResponse from Depends limitation)
 
+## Phase 8: Guest/Demo Mode — checklist
+
+> Adds a public read-only demo path for recruiters/portfolio visitors. No real
+> Azure AD login required. Real Azure AD flow is completely untouched.
+> All views are server-rendered FastAPI + Jinja2 (no new frontend framework).
+> All data is synthetic seed data only. Strictly read-only throughout.
+
+- [x] **Step 1 — Guest auth + seed data**: Add `/demo-login` endpoint to access-control
+  that issues a signed `pulsegrid_session` cookie identical in structure to the real
+  Azure AD session (same `itsdangerous` serializer, same TTL, same cookie name) but
+  skips the OAuth redirect entirely. Payload: `authenticated=True`, `name="Demo Guest"`,
+  `email="demo@pulsegrid.dev"`, `is_guest=True`. Extend both CRM and ERP seed scripts
+  with additional rows that guarantee visible sync failures in the demo: add ≥4 extra
+  CRM orders with no matching ERP invoice (intentional ~10% gap already built-in, but
+  seed data must make at least 3–4 mismatches deterministic for a reliable demo).
+  Update `.env.example` with `DEMO_MODE_ENABLED` guard flag.
+
+- [ ] **Step 2 — Home dashboard shell + nav**: Add a guest-aware landing page
+  (`/guest/` or extend existing `/` with a guest branch) that shows a top-level nav
+  to all eight demo screens. Reuse/extend the existing `dashboard.html` shell.
+  Guest banner ("Demo Mode — read-only") visible on every page. No create/edit/delete
+  actions exposed anywhere in guest mode.
+
+- [ ] **Step 3 — Reconciliation log view**: Guest-accessible route (`/guest/reconciliation`)
+  that lists all detected CRM↔ERP mismatches — orders present in CRM with no matching
+  ERP invoice. Direct DB read (same pattern as `dashboard.py _get_mismatch_counts()`).
+  Shows: CRM order ID, customer name, order date, sync status (synced / missing invoice).
+  This is the core "proof" screen for recruiters.
+
+- [ ] **Step 4 — CRM + ERP list views**: Six read-only list routes under `/guest/`:
+  customer list, order list, ticket list (CRM); invoice list, inventory list, accounts list
+  (ERP). Direct DB reads via shadow models (pattern: `access-control/app/models.py`).
+  Table layout, no pagination required for demo-scale data.
+
+- [ ] **Step 5 — Integration-sync log view**: Guest route (`/guest/sync-log`) that shows
+  per-order sync status derived from the CRM orders ↔ ERP invoices join (Option B:
+  no new sync_events table; sync outcome inferred at query time by comparing CRM order
+  IDs against ERP invoice crm_order_id values). Columns: order ID, customer name, order
+  date, ERP invoice ID (or "—"), sync status (Synced / Failed — ~10% rows). Makes the
+  intentional failure rate visible.
+
+- [ ] **Step 6 — API health results table**: Guest route (`/guest/api-health`) that reads
+  the latest Newman JSON report artifact and renders a pass/fail table per test.
+  Fallback: if no Newman report is available, show a static "last known status" notice.
+  No LogPulse call from this view — display only.
+
+- [ ] **Step 7 — Observability view**: Check whether Grafana's `allow_embedding` and
+  `X-Frame-Options` permit iframe embedding before implementing. If Grafana allows
+  embedding → render `/guest/observability` with an iframe. If not → link-out pattern
+  (same as LogPulse link-out in commit 2eca110), no forced blank iframe.
+  Document the outcome in `docs/learnings.md § Phase 8`.
+
+- [ ] **Step 8 — LogPulse link-out**: Guest route (`/guest/logpulse`) that shows RCA
+  results for detected mismatches. Reuse the existing LogPulse `/history` fetch pattern
+  already built in `dashboard.py _get_logpulse_history()`. Link out to LogPulse for
+  full triage detail (same link-out pattern as commit 2eca110). No new LogPulse client
+  code — import from `pulsegrid_common`.
