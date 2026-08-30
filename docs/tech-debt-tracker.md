@@ -169,29 +169,15 @@ Not bugs — known decisions with documented rationale.
 - **Handoff note:** See `patterns.md § Azure AD app registration` and `.env.example` for
   the exact credentials required and generation instructions for `SESSION_SECRET_KEY`.
 
-### Hosted dashboard: CRM/ERP sections are local-only (Option B scope limit)
-- **Decision:** crm-service and erp-service are NOT deployed to Railway. The access-control
-  dashboard's "Reconciliation Mismatches", "Service Health", and "Sync Match Ratio" sections
-  are local-only — they require a running Docker Compose stack to show live data.
-- **Rationale:** Owner chose Option B over Option A (see `blocked.md`). Deploying crm-service
-  and erp-service to Railway would require provisioning Railway Postgres instances, seeding
-  data, and adding long-running services — disproportionate scope for a portfolio demo. The
-  dashboard is not entirely useless in production: the "Recent LogPulse Triage Results"
-  section remains live (log-pulse.up.railway.app is public).
-- **Scope in production (Railway hosted):**
-  - ✅ LogPulse /history section — live
-  - ✅ Azure AD login gate — live
-  - ❌ Reconciliation Mismatches — shows local-only notice
-  - ❌ Service Health — shows local-only notice
-  - ❌ Sync Match Ratio — shows local-only notice
-- **Scope in development (local Docker Compose):** all three sections live.
-- **Implementation:** `mismatch_error` template variable gates all three CRM/ERP cards.
-  `main.py` lifespan logs `logger.warning` (not `logger.critical`) for missing DB URLs.
-- **Reversal path:** Implement Option A from `blocked.md`:
-  - Add `railway.json` to `crm-service/` and `erp-service/`.
-  - Provision Railway Postgres plugin instances for each service.
-  - Set `CRM_DATABASE_URL`, `ERP_DATABASE_URL`, `CRM_SERVICE_URL`, `ERP_SERVICE_URL`
-    as Railway env vars on the access-control service (Railway-internal URLs).
-  - Seed crm-service and erp-service Postgres with the existing seed scripts.
-  - Remove the `mismatch_error`-gated local-only notices from `dashboard.html`
-    (or leave them — they only show when the DB URLs are absent/unreachable).
+### ~~Hosted dashboard: CRM/ERP sections are local-only (Option B scope limit)~~ — SUPERSEDED 2026-08-31
+
+**SUPERSEDED by Option A deployment (see `blocked.md` — Phase 7 blocker resolved 2026-08-31).**
+
+- crm-service and erp-service are now deployed to Railway.
+- crm + erp Postgres databases are seeded on the shared Railway Postgres instance.
+- access-control env vars (CRM_DATABASE_URL, ERP_DATABASE_URL, CRM_SERVICE_URL,
+  ERP_SERVICE_URL) must be set by the owner in the Railway dashboard to activate
+  live dashboard sections. See `blocked.md` for exact values.
+- Once set, all three sections (Reconciliation Mismatches, Service Health, Sync Match Ratio)
+  are live in production. The `mismatch_error` gate in `dashboard.html` is preserved as a
+  graceful-degradation fallback — it only triggers if the env vars are missing or unreachable.
