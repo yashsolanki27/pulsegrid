@@ -62,15 +62,23 @@ async def lifespan(app: FastAPI):
             "'Value' column (shown once at creation), NOT the 'Secret ID' column."
         )
 
-    # CRM/ERP DB URLs are local-only data sources (Option B — no Railway deploy).
-    # Their absence is expected in the hosted deployment; the dashboard degrades gracefully.
-    if not CRM_DATABASE_URL:
+    # CRM/ERP DB URLs should point to Railway-internal Postgres URLs (Option A).
+    # If they are missing or still at localhost defaults, the dashboard will degrade
+    # gracefully (mismatch/health sections show an error notice) but log a warning.
+    _localhost_urls = {
+        "postgresql+psycopg://postgres:postgres@localhost:5432/crm",
+        "postgresql+psycopg://postgres:postgres@localhost:5433/erp",
+        "",
+    }
+    if not CRM_DATABASE_URL or CRM_DATABASE_URL in _localhost_urls:
         logger.warning(
-            "Local-only data source unavailable in hosted deployment: CRM_DATABASE_URL"
+            "CRM_DATABASE_URL is unset or still points to localhost — "
+            "set it to the Railway Postgres URL for live dashboard data."
         )
-    if not ERP_DATABASE_URL:
+    if not ERP_DATABASE_URL or ERP_DATABASE_URL in _localhost_urls:
         logger.warning(
-            "Local-only data source unavailable in hosted deployment: ERP_DATABASE_URL"
+            "ERP_DATABASE_URL is unset or still points to localhost — "
+            "set it to the Railway Postgres URL for live dashboard data."
         )
 
     if problems:
@@ -81,8 +89,7 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info(
-            "access-control config OK — AAD and session credentials present. "
-            "CRM/ERP DB sections are local-only and will show notices in the hosted deployment."
+            "access-control config OK — AAD and session credentials present."
         )
 
     yield
