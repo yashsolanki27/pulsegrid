@@ -16,11 +16,13 @@
 
 | Service | URL |
 |---|---|
-| **Operations Dashboard** | Deployed on Railway — Azure AD login required |
+| **Operations Dashboard** | https://pulsegrid-dashboard.up.railway.app — Azure AD login required |
+| **CRM service** | https://crm-service-production-6f6c.up.railway.app |
+| **ERP service** | https://erp-service-production-d446.up.railway.app |
 | **LogPulse triage feed** | https://log-pulse.up.railway.app |
 
-> The dashboard's mismatch and service-health sections require a local Docker Compose stack.
-> The LogPulse triage history section is live in the hosted deployment.
+> All dashboard sections (Reconciliation Mismatches, Service Health, Sync Match Ratio,
+> LogPulse history) are live in the hosted deployment.
 
 ---
 
@@ -102,7 +104,7 @@ graph TD
 | API testing | Postman + Newman CLI |
 | CI | GitHub Actions (scheduled health checks) |
 | Containerisation | Docker + Docker Compose |
-| Hosting | Railway (access-control service) |
+| Hosting | Railway (access-control, crm-service, erp-service) |
 | Error triage | LogPulse — external AI-assisted RCA service (HTTP only) |
 
 ---
