@@ -30,7 +30,7 @@ from app.config import (
     LOGPULSE_URL,
 )
 from app.db import CRMSession, ERPSession
-from app.session import get_session, is_authenticated
+from app.session import get_session, is_authenticated, is_guest_session
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,9 @@ async def dashboard(request: Request):
     session = get_session(request)
     if not is_authenticated(session):
         return RedirectResponse(url="/auth/login", status_code=302)
+
+    if is_guest_session(session):
+        return RedirectResponse(url="/guest/", status_code=302)
 
     # Gather all data concurrently — each helper is individually fault-tolerant
     mismatch_data = _get_mismatch_counts()

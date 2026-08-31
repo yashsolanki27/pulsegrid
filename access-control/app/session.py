@@ -89,6 +89,11 @@ def is_authenticated(session: dict[str, Any]) -> bool:
     return time.time() < expires_at
 
 
+def is_guest_session(session: dict[str, Any]) -> bool:
+    """Return True if the session was created by /demo-login (guest mode)."""
+    return bool(session.get("is_guest", False))
+
+
 def require_auth(request: Request) -> dict[str, Any]:
     """
     FastAPI dependency — returns the session dict for authenticated users,

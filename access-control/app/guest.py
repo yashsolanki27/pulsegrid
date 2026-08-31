@@ -53,7 +53,7 @@ from app.models import (
     CRMCustomer, CRMOrder, CRMTicket,
     ERPInvoice, ERPInventoryItem, ERPAccount,
 )
-from app.session import get_session, is_authenticated, set_session
+from app.session import get_session, is_authenticated, is_guest_session, set_session
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,8 @@ def _guest_required(request: Request) -> dict[str, Any] | RedirectResponse:
     session = get_session(request)
     if not is_authenticated(session):
         return RedirectResponse(url="/auth/login", status_code=302)
+    if not is_guest_session(session):
+        return RedirectResponse(url="/", status_code=302)
     return session
 
 
@@ -113,8 +115,8 @@ async def demo_login(request: Request):
 
     # Honour a `?next=` param but only allow /guest/* targets to prevent
     # open-redirect abuse (guest session cannot reach admin/auth routes).
-    raw_next = request.query_params.get("next", "/")
-    safe_next = raw_next if raw_next.startswith("/guest") else "/"
+    raw_next = request.query_params.get("next", "/guest/")
+    safe_next = raw_next if raw_next.startswith("/guest") else "/guest/"
 
     response = RedirectResponse(url=safe_next, status_code=302)
     set_session(response, guest_session)

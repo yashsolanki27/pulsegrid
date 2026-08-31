@@ -350,3 +350,33 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   template to an `<iframe>`. Both are one-line env var changes. The template and route
   are structured so the switch is trivial (replace the link-out card with an iframe
   card).
+
+### Guest session boundary gap — missing is_guest guard (Phase 8 regression)
+
+- **Symptom:** Guest sessions (`is_guest=True`) could access the real authenticated
+  dashboard at `/` in addition to `/guest/*` routes. The session boundary was porous:
+  guest sessions were not confined to `/guest/*`.
+- **Root cause:** Two independent missing checks:
+  1. `dashboard.py` `/` route only called `is_authenticated(session)` — did not check
+     `is_guest`. A guest session passed the auth gate and rendered the full real
+     dashboard.
+  2. `guest.py` `_guest_required()` docstring said "Check session is authenticated
+     **and is_guest**" but the code only checked `is_authenticated`. The `is_guest`
+     field was present in the session payload but never read by any guard.
+- **Fix (3 files):**
+  1. `session.py`: added `is_guest_session(session)` helper — reads `session["is_guest"]`.
+  2. `dashboard.py`: after `is_authenticated` check, added `if is_guest_session(session):
+     return RedirectResponse(url="/guest/", status_code=302)` — guests bounced to
+     guest dashboard.
+  3. `guest.py` `_guest_required`: added `if not is_guest_session(session): return
+     RedirectResponse(url="/", status_code=302)` — non-guest authenticated users
+     bounced to real dashboard.
+  4. `guest.py` `demo_login`: changed default redirect from `/` to `/guest/` — avoids
+     an unnecessary redirect hop after the new guard on `/`.
+- **Why this matters:** Phase 8 spec says "No create/edit/delete actions exposed
+  anywhere in guest mode." While the `/` route is read-only today, the boundary exists
+  to prevent future real-dashboard routes from being accidentally exposed to guest
+  sessions. Defence in depth — the guard is the contract, not the current route list.
+- **Detection:** Phase 8 regression cycle found guest session returning 200 on `/`
+  instead of 302 redirect to `/guest/`. Code review confirmed `is_guest` field existed
+  in the session payload but was never checked by any guard function.
