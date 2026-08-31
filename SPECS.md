@@ -109,7 +109,7 @@
   seed data must make at least 3–4 mismatches deterministic for a reliable demo).
   Update `.env.example` with `DEMO_MODE_ENABLED` guard flag.
 
-- [ ] **Step 2 — Home dashboard shell + nav**: Add a guest-aware landing page
+- [x] **Step 2 — Home dashboard shell + nav**: Add a guest-aware landing page
   (`/guest/` or extend existing `/` with a guest branch) that shows a top-level nav
   to all eight demo screens. Reuse/extend the existing `dashboard.html` shell.
   Guest banner ("Demo Mode — read-only") visible on every page. No create/edit/delete

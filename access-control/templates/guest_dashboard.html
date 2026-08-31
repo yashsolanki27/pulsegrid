@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}PulseGrid — Guest Dashboard{% endblock %}
+{% block page_title %}Guest Dashboard{% endblock %}
+
+{% block content %}
+<div class="row row-deck row-cards">
+
+  <!-- Reconciliation Mismatches -->
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-status-top bg-blue"></div>
+      <div class="card-body">
+        <h3 class="card-title">Reconciliation</h3>
+        {% if mismatch_error %}
+          <div class="text-secondary">{{ mismatch_error }}</div>
+        {% else %}
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="fs-1 fw-bold">{{ total_orders }}</span>
+              <span class="text-secondary">total orders</span>
+            </div>
+            <div class="text-secondary mt-1">
+              <span class="text-green fw-semibold">{{ matched_orders }}</span> matched &middot;
+              <span class="text-yellow fw-semibold">{{ mismatch_count }}</span> missing
+            </div>
+          </div>
+        </div>
+        <div class="mt-3">
+          {% set match_pct = ((matched_orders / total_orders * 100) | round(1)) if total_orders > 0 else 0 %}
+          <div class="progress progress-sm">
+            <div class="progress-bar bg-green" style="width: {{ match_pct }}%"></div>
+          </div>
+          <div class="text-secondary mt-1" style="font-size:0.75rem;">
+            {{ match_pct }}% sync rate — ~10% gap is intentional by design
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Service Health -->
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-status-top bg-green"></div>
+      <div class="card-body">
+        <h3 class="card-title">Service Health</h3>
+        <div class="space-y-3">
+          <div class="d-flex align-items-center gap-3">
+            <span class="badge {% if crm_health.status == 'ok' %}bg-green{% elif crm_health.status == 'degraded' %}bg-yellow{% else %}bg-red{% endif %}">{{ crm_health.status }}</span>
+            <span class="text-secondary">crm-service</span>
+            <span class="ms-auto text-secondary" style="font-size:0.75rem;">HTTP {{ crm_health.code }}</span>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <span class="badge {% if erp_health.status == 'ok' %}bg-green{% elif erp_health.status == 'degraded' %}bg-yellow{% else %}bg-red{% endif %}">{{ erp_health.status }}</span>
+            <span class="text-secondary">erp-service</span>
+            <span class="ms-auto text-secondary" style="font-size:0.75rem;">HTTP {{ erp_health.code }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-status-top bg-purple"></div>
+      <div class="card-body">
+        <h3 class="card-title">Demo Screens</h3>
+        <div class="list-group list-group-flush">
+          <span class="list-group-item d-flex align-items-center text-secondary" style="opacity:0.5;">
+            <i class="ti ti-users me-2"></i> Customers <span class="badge bg-secondary-lt ms-auto" style="font-size:0.6rem;">soon</span>
+          </span>
+          <span class="list-group-item d-flex align-items-center text-secondary" style="opacity:0.5;">
+            <i class="ti ti-shopping-cart me-2"></i> Orders <span class="badge bg-secondary-lt ms-auto" style="font-size:0.6rem;">soon</span>
+          </span>
+          <span class="list-group-item d-flex align-items-center text-secondary" style="opacity:0.5;">
+            <i class="ti ti-file-invoice me-2"></i> Invoices <span class="badge bg-secondary-lt ms-auto" style="font-size:0.6rem;">soon</span>
+          </span>
+          <span class="list-group-item d-flex align-items-center text-secondary" style="opacity:0.5;">
+            <i class="ti ti-arrows-left-right me-2"></i> Reconciliation <span class="badge bg-secondary-lt ms-auto" style="font-size:0.6rem;">soon</span>
+          </span>
+          <span class="list-group-item d-flex align-items-center text-secondary" style="opacity:0.5;">
+            <i class="ti ti-heartbeat me-2"></i> LogPulse <span class="badge bg-secondary-lt ms-auto" style="font-size:0.6rem;">soon</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LogPulse Recent Triage Results -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Recent LogPulse Triage Results</h3>
+        <div class="card-actions d-flex">
+          <a href="https://log-pulse.up.railway.app/" target="_blank" rel="noopener"
+             class="btn btn-sm btn-ghost-secondary">
+            View full history <i class="ti ti-external-link"></i>
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if logpulse_error %}
+          <div class="text-secondary">{{ logpulse_error }}</div>
+        {% elif logpulse_history %}
+          <div class="table-responsive">
+            <table class="table table-vcenter table-nowrap">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Category</th>
+                  <th>Confidence</th>
+                  <th>Root Cause</th>
+                  <th>Created At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in logpulse_history %}
+                <tr>
+                  <td class="text-secondary">{{ item.id }}</td>
+                  <td>
+                    <span class="badge {% if item.category != 'unclassified' %}bg-green-lt{% else %}bg-red-lt{% endif %}">
+                      {{ item.category }}
+                    </span>
+                  </td>
+                  <td class="text-secondary">{{ item.confidence }}%</td>
+                  <td>{{ item.root_cause_summary }}</td>
+                  <td class="text-secondary">{{ item.created_at }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-secondary">No triage results found.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

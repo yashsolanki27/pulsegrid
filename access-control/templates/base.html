@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}PulseGrid{% endblock %}</title>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css"/>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+  {% block head %}{% endblock %}
+  <style>
+    .guest-banner {
+      background: rgba(245, 158, 11, 0.10);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
+      text-align: center;
+      padding: 8px 16px;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .sidebar-brand .brand-text { font-size: 1rem; }
+    .dropdown-item.disabled { pointer-events: none; opacity: 0.5; }
+    .dropdown-item.disabled .badge-soon {
+      font-size: 0.6rem; font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase; color: #6b7f96; background: rgba(107,127,150,0.12);
+      border: 1px solid rgba(107,127,150,0.25); border-radius: 4px;
+      padding: 1px 5px; margin-left: auto; white-space: nowrap;
+    }
+  </style>
+</head>
+<body class="d-flex flex-column">
+  <div class="page">
+    <!-- Sidebar -->
+    <aside class="navbar navbar-vertical navbar-expand-sm position-absolute"
+           data-bs-theme="dark">
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button"
+                data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+          <a href="/guest/" class="d-flex align-items-center gap-2 text-decoration-none">
+            <span class="brand-dot" style="width:10px;height:10px;border-radius:50%;background:#6366f1;box-shadow:0 0 8px rgba(99,102,241,0.8);flex-shrink:0;display:inline-block;"></span>
+            <span class="fw-bold text-white">PulseGrid</span>
+          </a>
+          <div style="font-size:0.65rem;color:#8b9ab0;margin-top:2px;">Access Control</div>
+        </h1>
+        <div class="collapse navbar-collapse" id="sidebar-menu">
+          <ul class="navbar-nav pt-lg-3">
+            <li class="nav-item">
+              <a class="nav-link {% if active_page == 'home' %}active{% endif %}"
+                 href="/guest/">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-layout-dashboard"></i>
+                </span>
+                <span class="nav-link-title">Home</span>
+              </a>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#navbar-crm"
+                 data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-users"></i>
+                </span>
+                <span class="nav-link-title">CRM</span>
+              </a>
+              <div class="dropdown-menu">
+                <!-- Step 4: CRM list views — pending -->
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Customers <span class="badge-soon">soon</span>
+                </span>
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Orders <span class="badge-soon">soon</span>
+                </span>
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Tickets <span class="badge-soon">soon</span>
+                </span>
+              </div>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#navbar-erp"
+                 data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-file-invoice"></i>
+                </span>
+                <span class="nav-link-title">ERP</span>
+              </a>
+              <div class="dropdown-menu">
+                <!-- Step 4: ERP list views — pending -->
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Invoices <span class="badge-soon">soon</span>
+                </span>
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Inventory <span class="badge-soon">soon</span>
+                </span>
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Accounts <span class="badge-soon">soon</span>
+                </span>
+              </div>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#navbar-system"
+                 data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">
+                  <i class="ti ti-settings"></i>
+                </span>
+                <span class="nav-link-title">System</span>
+              </a>
+              <div class="dropdown-menu">
+                <!-- Step 3: Reconciliation — pending -->
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Reconciliation <span class="badge-soon">soon</span>
+                </span>
+                <!-- Step 5: Sync Log — pending -->
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Sync Log <span class="badge-soon">soon</span>
+                </span>
+                <!-- Step 6: API Health — pending -->
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  API Health <span class="badge-soon">soon</span>
+                </span>
+                <!-- Step 7: Observability — pending -->
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  Observability <span class="badge-soon">soon</span>
+                </span>
+                <!-- Step 8: LogPulse — pending -->
+                <span class="dropdown-item disabled" aria-disabled="true">
+                  LogPulse <span class="badge-soon">soon</span>
+                </span>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+
+    <div class="page-wrapper">
+      <!-- Guest banner — every guest page -->
+      {% if is_guest %}
+      <div class="guest-banner" role="status">
+        <i class="ti ti-eye-off"></i>
+        Demo Mode — read-only. No data is modified.
+      </div>
+      {% endif %}
+
+      <div class="page-header d-print-none">
+        <div class="container-xl">
+          <div class="row g-2 align-items-center">
+            <div class="col">
+              <h2 class="page-title">{% block page_title %}Dashboard{% endblock %}</h2>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+              <div class="btn-list">
+                <span class="d-none d-sm-inline text-secondary" style="font-size:0.82rem;">
+                  {{ user_name }} &middot; {{ user_email }}
+                </span>
+                <a href="/auth/logout" class="btn btn-outline-danger btn-sm">
+                  <i class="ti ti-logout"></i> Sign out
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-body">
+        <div class="container-xl">
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+
+      <footer class="footer footer-transparent d-print-none">
+        <div class="container-xl">
+          <div class="row text-center align-items-center flex-row-reverse">
+            <div class="col-lg-auto ms-lg-auto">
+              PulseGrid &middot; Access Control &middot; Guest Mode
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
