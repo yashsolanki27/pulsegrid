@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}PulseGrid — Observability{% endblock %}
+{% block page_title %}Observability{% endblock %}
+
+{% block content %}
+<div class="row row-deck row-cards">
+
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-status-top bg-blue"></div>
+      <div class="card-body">
+        <h3 class="card-title">Grafana Dashboard</h3>
+        <p class="text-secondary">
+          Service health, request rates, error rates, reconciliation metrics,
+          and live logs — all in one place.
+        </p>
+        <a href="{{ grafana_url }}"
+           target="_blank" rel="noopener noreferrer"
+           class="btn btn-primary">
+          Open Grafana <i class="ti ti-external-link ms-1"></i>
+        </a>
+        <div class="text-secondary mt-3" style="font-size:0.78rem;">
+          Opens in a new tab. Grafana is the central observability dashboard for
+          Prometheus, Loki, and Alertmanager data.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-status-top bg-green"></div>
+      <div class="card-body">
+        <h3 class="card-title">What's Monitored</h3>
+        <div class="list-group list-group-flush">
+          <div class="list-group-item d-flex align-items-center">
+            <i class="ti ti-heartbeat me-2 text-green"></i>
+            Service health (up/down status)
+          </div>
+          <div class="list-group-item d-flex align-items-center">
+            <i class="ti ti-chart-line me-2 text-blue"></i>
+            Request rate &amp; latency
+          </div>
+          <div class="list-group-item d-flex align-items-center">
+            <i class="ti ti-alert-triangle me-2 text-yellow"></i>
+            5xx error rate (threshold: 5%)
+          </div>
+          <div class="list-group-item d-flex align-items-center">
+            <i class="ti ti-arrows-left-right me-2 text-purple"></i>
+            Reconciliation mismatches
+          </div>
+          <div class="list-group-item d-flex align-items-center">
+            <i class="ti ti-file-text me-2 text-cyan"></i>
+            Log volume (Loki)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

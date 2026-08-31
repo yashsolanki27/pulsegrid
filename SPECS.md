@@ -138,7 +138,7 @@
   Fallback: if no Newman report is available, show a static "last known status" notice.
   No LogPulse call from this view — display only.
 
-- [ ] **Step 7 — Observability view**: Check whether Grafana's `allow_embedding` and
+- [x] **Step 7 — Observability view**: Check whether Grafana's `allow_embedding` and
   `X-Frame-Options` permit iframe embedding before implementing. If Grafana allows
   embedding → render `/guest/observability` with an iframe. If not → link-out pattern
   (same as LogPulse link-out in commit 2eca110), no forced blank iframe.

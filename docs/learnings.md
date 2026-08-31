@@ -320,3 +320,33 @@ Organised by phase. Add new entries at the bottom of the relevant phase section.
   and degrades gracefully if the endpoint is unavailable. The endpoint is stable — the
   fallback is a safety net, not a expected failure path.
 - **Confirmed via:** live curl during PulseGrid audit 2026-08-31.
+
+---
+
+## Phase 8: Guest/Demo Mode
+
+### Grafana iframe embedding: blocked by default — link-out pattern chosen
+
+- **Question:** Does `observability-stack/grafana` permit iframe embedding?
+- **Answer:** No. The Grafana container (`grafana/grafana:11.1.0`) is configured
+  entirely via environment variables in `observability-stack/docker-compose.yml`.
+  The following relevant settings are **not set** (defaulting to `false`):
+  - `GF_SECURITY_ALLOW_EMBEDDING` — defaults to `false`. When false, Grafana sets
+    `X-Frame-Options: deny` on all responses, blocking iframe embedding on any
+    origin.
+  - `GF_AUTH_ANONYMOUS_ENABLED` — explicitly `"false"`. Even if embedding were
+    allowed, anonymous access is required for cross-origin iframes to work without
+    forwarding cookies (SameSite cookie policy would block third-party cookies).
+- **Implication:** An `<iframe src="http://localhost:3000/...">` from
+  `pulsegrid-dashboard.up.railway.app` would be refused by the browser due to
+  `X-Frame-Options: deny`. A blank/broken iframe with a console error is the
+  guaranteed result.
+- **Decision:** Use link-out pattern (same as LogPulse link-out in commit 2eca110).
+  The `/guest/observability` page renders a card with a "Open Grafana" button that
+  opens the Grafana URL in a new tab (`target="_blank" rel="noopener noreferrer"`).
+  No forced iframe, no broken embed.
+- **Future path:** If embedding is ever needed, set `GF_SECURITY_ALLOW_EMBEDDING=true`
+  and `GF_AUTH_ANONYMOUS_ENABLED=true` in the Grafana environment, then switch the
+  template to an `<iframe>`. Both are one-line env var changes. The template and route
+  are structured so the switch is trivial (replace the link-out card with an iframe
+  card).

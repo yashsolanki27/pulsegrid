@@ -42,6 +42,7 @@ from sqlalchemy import text
 from app.config import (
     CRM_SERVICE_URL,
     ERP_SERVICE_URL,
+    GRAFANA_URL,
     HEALTH_PING_TIMEOUT,
     LOGPULSE_URL,
     NEWMAN_REPORT_PATH,
@@ -844,5 +845,28 @@ async def guest_api_health(request: Request):
             "is_guest": session.get("is_guest", False),
             "active_page": "api-health",
             **data,
+        },
+    )
+
+
+# ── /guest/observability ──────────────────────────────────────────────────────
+
+
+@router.get("/guest/observability", response_class=HTMLResponse)
+async def guest_observability(request: Request):
+    """Guest observability — link-out to Grafana dashboard, read-only."""
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_observability.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "observability",
+            "grafana_url": GRAFANA_URL,
         },
     )
