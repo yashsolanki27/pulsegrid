@@ -126,7 +126,7 @@
   (ERP). Direct DB reads via shadow models (pattern: `access-control/app/models.py`).
   Table layout, no pagination required for demo-scale data.
 
-- [ ] **Step 5 — Integration-sync log view**: Guest route (`/guest/sync-log`) that shows
+- [x] **Step 5 — Integration-sync log view**: Guest route (`/guest/sync-log`) that shows
   per-order sync status derived from the CRM orders ↔ ERP invoices join (Option B:
   no new sync_events table; sync outcome inferred at query time by comparing CRM order
   IDs against ERP invoice crm_order_id values). Columns: order ID, customer name, order

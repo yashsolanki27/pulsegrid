@@ -641,3 +641,82 @@ async def guest_accounts(request: Request):
             **data,
         },
     )
+
+
+# ── /guest/sync-log ──────────────────────────────────────────────────────────
+
+
+def _get_sync_log_rows() -> dict[str, Any]:
+    """
+    Per-order sync status — CRM orders joined against ERP invoices at query time.
+    Returns rows with order ID, customer name, order date, ERP invoice ID (or None),
+    and sync status ('Synced' / 'Failed'). Sorted by order ID descending.
+    """
+    try:
+        with CRMSession() as crm_db:
+            orders = crm_db.execute(
+                text("SELECT id, customer_id, created_at FROM orders")
+            ).fetchall()
+            customers = {
+                row[0]: row[1]
+                for row in crm_db.execute(
+                    text("SELECT id, name FROM customers")
+                ).fetchall()
+            }
+
+        with ERPSession() as erp_db:
+            # Build crm_order_id → invoice_id map
+            erp_map: dict[int, int] = {}
+            for row in erp_db.execute(
+                text("SELECT crm_order_id, id FROM invoices WHERE crm_order_id IS NOT NULL")
+            ).fetchall():
+                erp_map[row[0]] = row[1]
+
+        _AMS = ZoneInfo("Europe/Amsterdam")
+        rows = []
+        for order_id, customer_id, created_at in orders:
+            raw_date = created_at or ""
+            formatted_date = raw_date
+            if raw_date:
+                try:
+                    dt = datetime.fromisoformat(raw_date)
+                    dt = dt.astimezone(_AMS)
+                    formatted_date = dt.strftime("%b %-d, %Y, %-I:%M %p")
+                except (ValueError, TypeError):
+                    pass
+            invoice_id = erp_map.get(order_id)
+            rows.append({
+                "order_id": order_id,
+                "customer_name": customers.get(customer_id, "Unknown"),
+                "order_date": formatted_date,
+                "invoice_id": invoice_id,
+                "synced": invoice_id is not None,
+            })
+
+        rows.sort(key=lambda r: r["order_id"], reverse=True)
+        return {"sync_log_rows": rows, "sync_log_error": None}
+    except Exception as exc:
+        logger.warning("Guest sync-log: query failed: %s", exc)
+        return {"sync_log_rows": [], "sync_log_error": str(exc)}
+
+
+@router.get("/guest/sync-log", response_class=HTMLResponse)
+async def guest_sync_log(request: Request):
+    """Guest integration-sync log — per-order sync status, read-only."""
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+
+    data = _get_sync_log_rows()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_sync_log.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "sync-log",
+            **data,
+        },
+    )

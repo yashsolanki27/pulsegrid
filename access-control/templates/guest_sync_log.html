@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}PulseGrid — Sync Log{% endblock %}
+{% block page_title %}Integration Sync Log{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">CRM ↔ ERP Sync Status — Per Order</h3>
+  </div>
+  <div class="card-body">
+    {% if sync_log_error %}
+      <div class="text-secondary">{{ sync_log_error }}</div>
+    {% elif sync_log_rows %}
+      <div class="table-responsive">
+        <table class="table table-vcenter table-nowrap">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Order Date</th>
+              <th>ERP Invoice ID</th>
+              <th>Sync Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in sync_log_rows %}
+            <tr>
+              <td class="text-secondary">#{{ row.order_id }}</td>
+              <td>{{ row.customer_name }}</td>
+              <td class="text-secondary">{{ row.order_date }}</td>
+              <td class="text-secondary">
+                {% if row.invoice_id %}#{{ row.invoice_id }}{% else %}&mdash;{% endif %}
+              </td>
+              <td>
+                {% if row.synced %}
+                  <span class="badge bg-green-lt">Synced</span>
+                {% else %}
+                  <span class="badge bg-red-lt">Failed</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="text-secondary mt-2" style="font-size:0.8rem;">
+        {{ sync_log_rows|length }} orders total
+      </div>
+    {% else %}
+      <div class="text-secondary">No sync data available.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

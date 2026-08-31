@@ -120,10 +120,11 @@
                    href="/guest/reconciliation">
                   Reconciliation
                 </a>
-                <!-- Step 5: Sync Log — pending -->
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Sync Log <span class="badge-soon">soon</span>
-                </span>
+                <!-- Step 5: Sync Log — live -->
+                <a class="dropdown-item {% if active_page == 'sync-log' %}active{% endif %}"
+                   href="/guest/sync-log">
+                  Sync Log
+                </a>
                 <!-- Step 6: API Health — pending -->
                 <span class="dropdown-item disabled" aria-disabled="true">
                   API Health <span class="badge-soon">soon</span>
