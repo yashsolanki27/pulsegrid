@@ -115,7 +115,7 @@
   Guest banner ("Demo Mode — read-only") visible on every page. No create/edit/delete
   actions exposed anywhere in guest mode.
 
-- [ ] **Step 3 — Reconciliation log view**: Guest-accessible route (`/guest/reconciliation`)
+- [x] **Step 3 — Reconciliation log view**: Guest-accessible route (`/guest/reconciliation`)
   that lists all detected CRM↔ERP mismatches — orders present in CRM with no matching
   ERP invoice. Direct DB read (same pattern as `dashboard.py _get_mismatch_counts()`).
   Shows: CRM order ID, customer name, order date, sync status (synced / missing invoice).

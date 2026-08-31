@@ -262,3 +262,82 @@ async def _get_service_health() -> dict[str, Any]:
         "crm_health": crm_health,
         "erp_health": erp_health,
     }
+
+
+# ── /guest/reconciliation ─────────────────────────────────────────────────────
+
+
+def _get_reconciliation_rows() -> dict[str, Any]:
+    """
+    CRM orders with sync status — each order checked against ERP invoices.
+    Returns rows: [{order_id, customer_name, order_date, synced}, ...].
+    On DB error returns empty list with error flag.
+    """
+    try:
+        with CRMSession() as crm_db:
+            orders = crm_db.execute(
+                text("SELECT id, customer_id, created_at FROM orders")
+            ).fetchall()
+            customers = {
+                row[0]: row[1]
+                for row in crm_db.execute(
+                    text("SELECT id, name FROM customers")
+                ).fetchall()
+            }
+
+        with ERPSession() as erp_db:
+            erp_order_ids: set[int] = {
+                row[0]
+                for row in erp_db.execute(
+                    text("SELECT crm_order_id FROM invoices WHERE crm_order_id IS NOT NULL")
+                ).fetchall()
+            }
+
+        rows = []
+        for order_id, customer_id, created_at in orders:
+            raw_date = created_at or ""
+            formatted_date = raw_date
+            if raw_date:
+                try:
+                    from datetime import datetime
+                    from zoneinfo import ZoneInfo
+
+                    dt = datetime.fromisoformat(raw_date)
+                    dt = dt.astimezone(ZoneInfo("Europe/Amsterdam"))
+                    formatted_date = dt.strftime("%b %-d, %Y, %-I:%M %p")
+                except (ValueError, TypeError):
+                    pass
+            rows.append({
+                "order_id": order_id,
+                "customer_name": customers.get(customer_id, "Unknown"),
+                "order_date": formatted_date,
+                "synced": order_id in erp_order_ids,
+            })
+
+        rows.sort(key=lambda r: r["order_id"], reverse=True)
+        return {"reconciliation_rows": rows, "reconciliation_error": None}
+    except Exception as exc:
+        logger.warning("Guest reconciliation: query failed: %s", exc)
+        return {"reconciliation_rows": [], "reconciliation_error": str(exc)}
+
+
+@router.get("/guest/reconciliation", response_class=HTMLResponse)
+async def guest_reconciliation(request: Request):
+    """Guest reconciliation log — read-only CRM↔ERP sync status."""
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+
+    recon_data = _get_reconciliation_rows()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_reconciliation.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "reconciliation",
+            **recon_data,
+        },
+    )

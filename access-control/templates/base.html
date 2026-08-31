@@ -111,10 +111,11 @@
                 <span class="nav-link-title">System</span>
               </a>
               <div class="dropdown-menu">
-                <!-- Step 3: Reconciliation — pending -->
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Reconciliation <span class="badge-soon">soon</span>
-                </span>
+                <!-- Step 3: Reconciliation — live -->
+                <a class="dropdown-item {% if active_page == 'reconciliation' %}active{% endif %}"
+                   href="/guest/reconciliation">
+                  Reconciliation
+                </a>
                 <!-- Step 5: Sync Log — pending -->
                 <span class="dropdown-item disabled" aria-disabled="true">
                   Sync Log <span class="badge-soon">soon</span>
