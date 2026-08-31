@@ -67,16 +67,18 @@
                 <span class="nav-link-title">CRM</span>
               </a>
               <div class="dropdown-menu">
-                <!-- Step 4: CRM list views — pending -->
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Customers <span class="badge-soon">soon</span>
-                </span>
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Orders <span class="badge-soon">soon</span>
-                </span>
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Tickets <span class="badge-soon">soon</span>
-                </span>
+                <a class="dropdown-item {% if active_page == 'customers' %}active{% endif %}"
+                   href="/guest/customers">
+                  Customers
+                </a>
+                <a class="dropdown-item {% if active_page == 'orders' %}active{% endif %}"
+                   href="/guest/orders">
+                  Orders
+                </a>
+                <a class="dropdown-item {% if active_page == 'tickets' %}active{% endif %}"
+                   href="/guest/tickets">
+                  Tickets
+                </a>
               </div>
             </li>
 
@@ -89,16 +91,18 @@
                 <span class="nav-link-title">ERP</span>
               </a>
               <div class="dropdown-menu">
-                <!-- Step 4: ERP list views — pending -->
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Invoices <span class="badge-soon">soon</span>
-                </span>
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Inventory <span class="badge-soon">soon</span>
-                </span>
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  Accounts <span class="badge-soon">soon</span>
-                </span>
+                <a class="dropdown-item {% if active_page == 'invoices' %}active{% endif %}"
+                   href="/guest/invoices">
+                  Invoices
+                </a>
+                <a class="dropdown-item {% if active_page == 'inventory' %}active{% endif %}"
+                   href="/guest/inventory">
+                  Inventory
+                </a>
+                <a class="dropdown-item {% if active_page == 'accounts' %}active{% endif %}"
+                   href="/guest/accounts">
+                  Accounts
+                </a>
               </div>
             </li>
 

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}PulseGrid — {{ table_title }}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">{{ table_title }}</h3>
+  </div>
+  <div class="card-body">
+    {% if error %}
+      <div class="text-secondary">{{ error }}</div>
+    {% elif rows %}
+      <div class="table-responsive">
+        <table class="table table-vcenter table-nowrap">
+          <thead>
+            <tr>
+              {% for col in columns %}
+              <th>{{ col }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              {% for cell in row %}
+              <td>{{ cell }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-secondary">No {{ table_title | lower }} available.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

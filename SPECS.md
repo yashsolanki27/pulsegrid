@@ -121,7 +121,7 @@
   Shows: CRM order ID, customer name, order date, sync status (synced / missing invoice).
   This is the core "proof" screen for recruiters.
 
-- [ ] **Step 4 — CRM + ERP list views**: Six read-only list routes under `/guest/`:
+- [x] **Step 4 — CRM + ERP list views**: Six read-only list routes under `/guest/`:
   customer list, order list, ticket list (CRM); invoice list, inventory list, accounts list
   (ERP). Direct DB reads via shadow models (pattern: `access-control/app/models.py`).
   Table layout, no pagination required for demo-scale data.

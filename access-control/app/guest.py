@@ -45,6 +45,10 @@ from app.config import (
 )
 from app.db import CRMSession, ERPSession
 from app.config import DEMO_MODE_ENABLED, SESSION_TTL_SECONDS
+from app.models import (
+    CRMCustomer, CRMOrder, CRMTicket,
+    ERPInvoice, ERPInventoryItem, ERPAccount,
+)
 from app.session import get_session, is_authenticated, set_session
 
 logger = logging.getLogger(__name__)
@@ -339,5 +343,301 @@ async def guest_reconciliation(request: Request):
             "is_guest": session.get("is_guest", False),
             "active_page": "reconciliation",
             **recon_data,
+        },
+    )
+
+
+# ── /guest/customers ─────────────────────────────────────────────────────────
+
+
+def _get_customer_rows() -> dict[str, Any]:
+    try:
+        with CRMSession() as crm_db:
+            customers = crm_db.query(CRMCustomer).order_by(CRMCustomer.id).all()
+        rows = [[c.id, c.name or "—", c.email] for c in customers]
+        return {
+            "table_title": "Customers",
+            "page_title": "CRM Customers",
+            "columns": ["ID", "Name", "Email"],
+            "rows": rows,
+            "error": None,
+        }
+    except Exception as exc:
+        logger.warning("Guest customers: query failed: %s", exc)
+        return {
+            "table_title": "Customers",
+            "page_title": "CRM Customers",
+            "columns": ["ID", "Name", "Email"],
+            "rows": [],
+            "error": str(exc),
+        }
+
+
+@router.get("/guest/customers", response_class=HTMLResponse)
+async def guest_customers(request: Request):
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    data = _get_customer_rows()
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_list.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "customers",
+            **data,
+        },
+    )
+
+
+# ── /guest/orders ────────────────────────────────────────────────────────────
+
+
+def _get_order_rows() -> dict[str, Any]:
+    try:
+        with CRMSession() as crm_db:
+            orders = crm_db.query(CRMOrder).order_by(CRMOrder.id.desc()).all()
+            customer_names = {
+                c.id: c.name or "—"
+                for c in crm_db.query(CRMCustomer).all()
+            }
+        rows = [
+            [o.id, customer_names.get(o.customer_id, "Unknown"), o.created_at]
+            for o in orders
+        ]
+        return {
+            "table_title": "Orders",
+            "page_title": "CRM Orders",
+            "columns": ["ID", "Customer", "Created At"],
+            "rows": rows,
+            "error": None,
+        }
+    except Exception as exc:
+        logger.warning("Guest orders: query failed: %s", exc)
+        return {
+            "table_title": "Orders",
+            "page_title": "CRM Orders",
+            "columns": ["ID", "Customer", "Created At"],
+            "rows": [],
+            "error": str(exc),
+        }
+
+
+@router.get("/guest/orders", response_class=HTMLResponse)
+async def guest_orders(request: Request):
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    data = _get_order_rows()
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_list.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "orders",
+            **data,
+        },
+    )
+
+
+# ── /guest/tickets ───────────────────────────────────────────────────────────
+
+
+def _get_ticket_rows() -> dict[str, Any]:
+    try:
+        with CRMSession() as crm_db:
+            tickets = crm_db.query(CRMTicket).order_by(CRMTicket.id.desc()).all()
+            customer_names = {
+                c.id: c.name or "—"
+                for c in crm_db.query(CRMCustomer).all()
+            }
+        rows = [
+            [
+                t.id,
+                customer_names.get(t.customer_id, "Unknown"),
+                t.subject,
+                t.order_id or "—",
+                t.created_at,
+            ]
+            for t in tickets
+        ]
+        return {
+            "table_title": "Tickets",
+            "page_title": "CRM Tickets",
+            "columns": ["ID", "Customer", "Subject", "Order ID", "Created At"],
+            "rows": rows,
+            "error": None,
+        }
+    except Exception as exc:
+        logger.warning("Guest tickets: query failed: %s", exc)
+        return {
+            "table_title": "Tickets",
+            "page_title": "CRM Tickets",
+            "columns": ["ID", "Customer", "Subject", "Order ID", "Created At"],
+            "rows": [],
+            "error": str(exc),
+        }
+
+
+@router.get("/guest/tickets", response_class=HTMLResponse)
+async def guest_tickets(request: Request):
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    data = _get_ticket_rows()
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_list.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "tickets",
+            **data,
+        },
+    )
+
+
+# ── /guest/invoices ──────────────────────────────────────────────────────────
+
+
+def _get_invoice_rows() -> dict[str, Any]:
+    try:
+        with ERPSession() as erp_db:
+            invoices = erp_db.query(ERPInvoice).order_by(ERPInvoice.id.desc()).all()
+        rows = [
+            [i.id, i.crm_order_id, i.status, i.created_at]
+            for i in invoices
+        ]
+        return {
+            "table_title": "Invoices",
+            "page_title": "ERP Invoices",
+            "columns": ["ID", "CRM Order ID", "Status", "Created At"],
+            "rows": rows,
+            "error": None,
+        }
+    except Exception as exc:
+        logger.warning("Guest invoices: query failed: %s", exc)
+        return {
+            "table_title": "Invoices",
+            "page_title": "ERP Invoices",
+            "columns": ["ID", "CRM Order ID", "Status", "Created At"],
+            "rows": [],
+            "error": str(exc),
+        }
+
+
+@router.get("/guest/invoices", response_class=HTMLResponse)
+async def guest_invoices(request: Request):
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    data = _get_invoice_rows()
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_list.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "invoices",
+            **data,
+        },
+    )
+
+
+# ── /guest/inventory ─────────────────────────────────────────────────────────
+
+
+def _get_inventory_rows() -> dict[str, Any]:
+    try:
+        with ERPSession() as erp_db:
+            items = erp_db.query(ERPInventoryItem).order_by(ERPInventoryItem.id).all()
+        rows = [[i.id, i.name, i.quantity, i.created_at] for i in items]
+        return {
+            "table_title": "Inventory",
+            "page_title": "ERP Inventory",
+            "columns": ["ID", "Name", "Quantity", "Created At"],
+            "rows": rows,
+            "error": None,
+        }
+    except Exception as exc:
+        logger.warning("Guest inventory: query failed: %s", exc)
+        return {
+            "table_title": "Inventory",
+            "page_title": "ERP Inventory",
+            "columns": ["ID", "Name", "Quantity", "Created At"],
+            "rows": [],
+            "error": str(exc),
+        }
+
+
+@router.get("/guest/inventory", response_class=HTMLResponse)
+async def guest_inventory(request: Request):
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    data = _get_inventory_rows()
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_list.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "inventory",
+            **data,
+        },
+    )
+
+
+# ── /guest/accounts ──────────────────────────────────────────────────────────
+
+
+def _get_account_rows() -> dict[str, Any]:
+    try:
+        with ERPSession() as erp_db:
+            accounts = erp_db.query(ERPAccount).order_by(ERPAccount.id).all()
+        rows = [
+            [a.id, a.crm_customer_id, f"{a.balance:,.2f}", f"{a.credit_limit:,.2f}", a.created_at]
+            for a in accounts
+        ]
+        return {
+            "table_title": "Accounts",
+            "page_title": "ERP Accounts",
+            "columns": ["ID", "CRM Customer ID", "Balance", "Credit Limit", "Created At"],
+            "rows": rows,
+            "error": None,
+        }
+    except Exception as exc:
+        logger.warning("Guest accounts: query failed: %s", exc)
+        return {
+            "table_title": "Accounts",
+            "page_title": "ERP Accounts",
+            "columns": ["ID", "CRM Customer ID", "Balance", "Credit Limit", "Created At"],
+            "rows": [],
+            "error": str(exc),
+        }
+
+
+@router.get("/guest/accounts", response_class=HTMLResponse)
+async def guest_accounts(request: Request):
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    data = _get_account_rows()
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_list.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "accounts",
+            **data,
         },
     )
