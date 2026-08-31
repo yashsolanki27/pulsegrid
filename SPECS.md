@@ -144,7 +144,7 @@
   (same as LogPulse link-out in commit 2eca110), no forced blank iframe.
   Document the outcome in `docs/learnings.md § Phase 8`.
 
-- [ ] **Step 8 — LogPulse link-out**: Guest route (`/guest/logpulse`) that shows RCA
+- [x] **Step 8 — LogPulse link-out**: Guest route (`/guest/logpulse`) that shows RCA
   results for detected mismatches. Reuse the existing LogPulse `/history` fetch pattern
   already built in `dashboard.py _get_logpulse_history()`. Link out to LogPulse for
   full triage detail (same link-out pattern as commit 2eca110). No new LogPulse client

@@ -870,3 +870,29 @@ async def guest_observability(request: Request):
             "grafana_url": GRAFANA_URL,
         },
     )
+
+
+# ── /guest/logpulse ──────────────────────────────────────────────────────────
+
+
+@router.get("/guest/logpulse", response_class=HTMLResponse)
+async def guest_logpulse(request: Request):
+    """Guest LogPulse view — RCA results + link-out, read-only."""
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+
+    logpulse_data = await _get_logpulse_history()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_logpulse.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "logpulse",
+            "logpulse_url": LOGPULSE_URL,
+            **logpulse_data,
+        },
+    )

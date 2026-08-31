@@ -135,10 +135,11 @@
                    href="/guest/observability">
                   Observability
                 </a>
-                <!-- Step 8: LogPulse — pending -->
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  LogPulse <span class="badge-soon">soon</span>
-                </span>
+                <!-- Step 8: LogPulse — live -->
+                <a class="dropdown-item {% if active_page == 'logpulse' %}active{% endif %}"
+                   href="/guest/logpulse">
+                  LogPulse
+                </a>
               </div>
             </li>
           </ul>

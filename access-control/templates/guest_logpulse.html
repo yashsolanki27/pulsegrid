@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}PulseGrid — LogPulse{% endblock %}
+{% block page_title %}LogPulse Triage Results{% endblock %}
+
+{% block content %}
+<div class="row row-deck row-cards">
+
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Recent Triage Results</h3>
+        <div class="card-actions d-flex">
+          <a href="{{ logpulse_url }}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-sm btn-ghost-secondary">
+            Open LogPulse <i class="ti ti-external-link"></i>
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if logpulse_error %}
+          <div class="text-secondary">{{ logpulse_error }}</div>
+        {% elif logpulse_history %}
+          <div class="table-responsive">
+            <table class="table table-vcenter table-nowrap">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Category</th>
+                  <th>Confidence</th>
+                  <th>Root Cause</th>
+                  <th>Suggested Action</th>
+                  <th>Created At</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in logpulse_history %}
+                <tr>
+                  <td class="text-secondary">{{ item.id }}</td>
+                  <td>
+                    {% if item.category and item.category != 'unclassified' %}
+                      <span class="badge bg-green-lt">{{ item.category }}</span>
+                    {% elif item.category %}
+                      <span class="badge bg-red-lt">{{ item.category }}</span>
+                    {% else %}
+                      <span class="badge bg-secondary-lt">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-secondary">{{ item.confidence }}%</td>
+                  <td>{{ item.root_cause_summary or '—' }}</td>
+                  <td class="text-secondary">{{ item.suggested_action or '—' }}</td>
+                  <td class="text-secondary">{{ item.created_at }}</td>
+                  <td>
+                    <a href="{{ logpulse_url }}" target="_blank" rel="noopener noreferrer"
+                       class="btn btn-sm btn-ghost-secondary">
+                      <i class="ti ti-external-link"></i>
+                    </a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-secondary">No triage results found.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
