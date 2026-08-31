@@ -77,3 +77,7 @@ HEALTH_PING_TIMEOUT: float = 5.0
 # MUST be false in any deployment where real users' data is present.
 # See docs/patterns.md § Guest/demo mode (Phase 8).
 DEMO_MODE_ENABLED: bool = os.getenv("DEMO_MODE_ENABLED", "false").lower() == "true"
+
+# Newman report path — JSON export from api-health-monitor CI run.
+# Local dev: repo root (newman-report.json). CI: same. Railway: file absent → fallback.
+NEWMAN_REPORT_PATH: str = os.getenv("NEWMAN_REPORT_PATH", "newman-report.json")

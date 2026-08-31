@@ -125,10 +125,11 @@
                    href="/guest/sync-log">
                   Sync Log
                 </a>
-                <!-- Step 6: API Health — pending -->
-                <span class="dropdown-item disabled" aria-disabled="true">
-                  API Health <span class="badge-soon">soon</span>
-                </span>
+                <!-- Step 6: API Health — live -->
+                <a class="dropdown-item {% if active_page == 'api-health' %}active{% endif %}"
+                   href="/guest/api-health">
+                  API Health
+                </a>
                 <!-- Step 7: Observability — pending -->
                 <span class="dropdown-item disabled" aria-disabled="true">
                   Observability <span class="badge-soon">soon</span>

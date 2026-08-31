@@ -25,9 +25,11 @@ Usage:
   GET /guest/                  → guest dashboard (requires guest session)
 """
 
+import json
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -42,6 +44,7 @@ from app.config import (
     ERP_SERVICE_URL,
     HEALTH_PING_TIMEOUT,
     LOGPULSE_URL,
+    NEWMAN_REPORT_PATH,
 )
 from app.db import CRMSession, ERPSession
 from app.config import DEMO_MODE_ENABLED, SESSION_TTL_SECONDS
@@ -717,6 +720,129 @@ async def guest_sync_log(request: Request):
             "user_email": session.get("email", ""),
             "is_guest": session.get("is_guest", False),
             "active_page": "sync-log",
+            **data,
+        },
+    )
+
+
+# ── /guest/api-health ─────────────────────────────────────────────────────────
+
+
+def _parse_newman_report() -> dict[str, Any]:
+    """
+    Read and parse the latest Newman JSON report from disk.
+
+    Returns dict with keys:
+      tests: list of {name, method, url, status, passed, errors}
+      summary: {total, passed, failed, run_at}
+      error: None on success, str on failure
+    """
+    report_path = Path(NEWMAN_REPORT_PATH)
+    if not report_path.exists():
+        return {
+            "tests": [],
+            "summary": {"total": 0, "passed": 0, "failed": 0, "run_at": None},
+            "error": None,
+            "report_found": False,
+        }
+
+    try:
+        with open(report_path, encoding="utf-8") as fh:
+            report = json.load(fh)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Guest api-health: failed to read Newman report: %s", exc)
+        return {
+            "tests": [],
+            "summary": {"total": 0, "passed": 0, "failed": 0, "run_at": None},
+            "error": f"Failed to parse report: {exc}",
+            "report_found": True,
+        }
+
+    executions = report.get("run", {}).get("executions", [])
+    run_stats = report.get("run", {}).get("stats", {})
+
+    # Determine run timestamp from Newman report
+    run_at = None
+    timings = run_stats.get("timings", {})
+    started = timings.get("started")
+    if started:
+        try:
+            run_at = datetime.fromtimestamp(started / 1000, tz=ZoneInfo("Europe/Amsterdam"))
+            run_at = run_at.strftime("%b %-d, %Y, %-I:%M %p")
+        except (ValueError, OSError):
+            pass
+
+    tests = []
+    total_assertions = 0
+    passed_assertions = 0
+
+    for execution in executions:
+        item_name = execution.get("item", {}).get("name", "unknown")
+        request = execution.get("request", {})
+        method = request.get("method", "GET")
+        raw_url = request.get("url", "")
+        if isinstance(raw_url, dict):
+            raw_url = raw_url.get("raw", str(raw_url))
+        # Strip query for display
+        from urllib.parse import urlparse
+        parsed = urlparse(str(raw_url))
+        url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}" if parsed.scheme else str(raw_url)
+
+        response = execution.get("response", {})
+        status = response.get("code") if response else None
+
+        assertion_errors = []
+        assertion_count = 0
+        for assertion in execution.get("assertions", []):
+            assertion_count += 1
+            total_assertions += 1
+            err = assertion.get("error")
+            if err is not None:
+                msg = err.get("message", str(err))
+                assertion_errors.append(msg)
+            else:
+                passed_assertions += 1
+
+        tests.append({
+            "name": item_name,
+            "method": method,
+            "url": url,
+            "status": status,
+            "passed": len(assertion_errors) == 0 and assertion_count > 0,
+            "errors": assertion_errors,
+        })
+
+    failed = total_assertions - passed_assertions
+    return {
+        "tests": tests,
+        "summary": {
+            "total": total_assertions,
+            "passed": passed_assertions,
+            "failed": failed,
+            "run_at": run_at,
+        },
+        "error": None,
+        "report_found": True,
+    }
+
+
+@router.get("/guest/api-health", response_class=HTMLResponse)
+async def guest_api_health(request: Request):
+    """Guest API health results — Newman report pass/fail table, read-only."""
+    session = _guest_required(request)
+    if isinstance(session, RedirectResponse):
+        return session
+
+    data = _parse_newman_report()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="guest_api_health.html",
+        context={
+            "user_name": session.get("name", "Guest"),
+            "user_email": session.get("email", ""),
+            "is_guest": session.get("is_guest", False),
+            "active_page": "api-health",
             **data,
         },
     )

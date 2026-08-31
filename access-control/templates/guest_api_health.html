@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}PulseGrid — API Health{% endblock %}
+{% block page_title %}API Health Results{% endblock %}
+
+{% block content %}
+{% if not report_found %}
+  <!-- No Newman report on disk — static fallback notice -->
+  <div class="card">
+    <div class="card-status-top bg-yellow"></div>
+    <div class="card-body">
+      <h3 class="card-title">No Health Report Available</h3>
+      <p class="text-secondary mb-0">
+        The Newman health report has not been generated yet on this deployment.
+        Reports are produced by the scheduled CI health-check
+        (<code>api-health-monitor</code>) and are only available where the report
+        artifact is present on disk.
+      </p>
+    </div>
+  </div>
+
+{% elif error %}
+  <!-- Report found but unreadable -->
+  <div class="card">
+    <div class="card-status-top bg-red"></div>
+    <div class="card-body">
+      <h3 class="card-title">Report Error</h3>
+      <p class="text-secondary mb-0">{{ error }}</p>
+    </div>
+  </div>
+
+{% else %}
+  <!-- Summary badges -->
+  <div class="row row-deck row-cards mb-3">
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="text-secondary text-uppercase text-secondary" style="font-size:0.7rem;">Total Assertions</div>
+          <div class="fs-2 fw-bold">{{ summary.total }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-status-top bg-green"></div>
+        <div class="card-body">
+          <div class="text-secondary text-uppercase" style="font-size:0.7rem;">Passed</div>
+          <div class="fs-2 fw-bold text-green">{{ summary.passed }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-status-top bg-red"></div>
+        <div class="card-body">
+          <div class="text-secondary text-uppercase" style="font-size:0.7rem;">Failed</div>
+          <div class="fs-2 fw-bold {% if summary.failed > 0 %}text-red{% else %}text-green{% endif %}">{{ summary.failed }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="text-secondary text-uppercase" style="font-size:0.7rem;">Last Run</div>
+          <div class="fw-bold" style="font-size:0.95rem;">{{ summary.run_at or "—" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-test results table -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Test Results</h3>
+      <div class="card-actions d-flex">
+        <span class="badge {% if summary.failed == 0 %}bg-green-lt{% else %}bg-red-lt{% endif %}">
+          {{ summary.passed }}/{{ summary.total }} passed
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      {% if tests %}
+        <div class="table-responsive">
+          <table class="table table-vcenter table-nowrap">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Test Name</th>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>HTTP Code</th>
+                <th>Errors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for test in tests %}
+              <tr>
+                <td>
+                  {% if test.passed %}
+                    <span class="badge bg-green-lt">Pass</span>
+                  {% else %}
+                    <span class="badge bg-red-lt">Fail</span>
+                  {% endif %}
+                </td>
+                <td>{{ test.name }}</td>
+                <td>
+                  <span class="badge bg-blue-lt">{{ test.method }}</span>
+                </td>
+                <td class="text-secondary" style="font-size:0.82rem;">{{ test.url }}</td>
+                <td class="text-secondary">{{ test.status or "—" }}</td>
+                <td>
+                  {% if test.errors %}
+                    <span class="text-red" style="font-size:0.82rem;">{{ test.errors|join("; ") }}</span>
+                  {% else %}
+                    <span class="text-secondary">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">No test executions found in report.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

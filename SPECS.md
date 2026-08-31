@@ -133,7 +133,7 @@
   date, ERP invoice ID (or "—"), sync status (Synced / Failed — ~10% rows). Makes the
   intentional failure rate visible.
 
-- [ ] **Step 6 — API health results table**: Guest route (`/guest/api-health`) that reads
+- [x] **Step 6 — API health results table**: Guest route (`/guest/api-health`) that reads
   the latest Newman JSON report artifact and renders a pass/fail table per test.
   Fallback: if no Newman report is available, show a static "last known status" notice.
   No LogPulse call from this view — display only.
